@@ -7,6 +7,7 @@ using System.Xml;
 using System.Xml.Serialization;
 using System.Diagnostics;
 using System.Linq;
+using System.Net;
 
 namespace ProFileCounter
 {
@@ -236,6 +237,9 @@ namespace ProFileCounter
             if (WindowState == FormWindowState.Minimized)
                 WindowState = FormWindowState.Normal;
             MasterPageList = Settings.UserSettings1.PageStore;
+
+            if (Settings.UserSettings1.CheckForProgramUpdates)
+                updateCheckWorker.RunWorkerAsync();
 		}
 		
 		void BtnManageClick(object sender, EventArgs e)
@@ -320,6 +324,45 @@ namespace ProFileCounter
             using (var settingsWindow = new SettingsWindow())
             {
                 var result = settingsWindow.ShowDialog(this);
+            }
+        }
+
+        private void updateCheckWorker_DoWork(object sender, System.ComponentModel.DoWorkEventArgs e)
+        {
+            var request = WebRequest.Create("https://bhs720.github.io/profile-counter/latest_version.txt");
+            request.Timeout = 5000;
+            var response = request.GetResponse();
+            var stream = response.GetResponseStream();
+            var reader = new StreamReader(stream);
+            var content = reader.ReadToEnd();
+            string[] lines = content.Split('\n');
+            int latestVersionMajor, latestVersionMinor;
+            string downloadLink;
+            int.TryParse(lines[0].Split('=')[1].Split('.')[0], out latestVersionMajor);
+            int.TryParse(lines[0].Split('=')[1].Split('.')[1], out latestVersionMinor);
+            downloadLink = lines[1].Split('=')[1];
+            int currentVersionMajor, currentVersionMinor;
+            int.TryParse(Application.ProductVersion.Split('.')[0], out currentVersionMajor);
+            int.TryParse(Application.ProductVersion.Split('.')[1], out currentVersionMinor);
+            if (latestVersionMajor > currentVersionMajor || latestVersionMinor > currentVersionMinor)
+                e.Result = downloadLink;
+            Debug.WriteLine("Latest version {0}.{1}\nCurrent Version {2}.{3}", latestVersionMajor, latestVersionMinor, currentVersionMajor, currentVersionMinor);
+        }
+
+        private void updateCheckWorker_RunWorkerCompleted(object sender, System.ComponentModel.RunWorkerCompletedEventArgs e)
+        {
+            if (e.Error != null)
+            {
+                Debug.WriteLine(e.Error.Message);
+            }
+            else if (e.Result != null)
+            {
+                lblUpdate.Enabled = true;
+                lblUpdate.Text = "New version is available!";
+                lblUpdate.Click += delegate
+                {
+                    Process.Start(e.Result as string);
+                };
             }
         }
 	}

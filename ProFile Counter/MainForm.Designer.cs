@@ -58,8 +58,9 @@ namespace ProFileCounter
             this.lblTotalFiles = new System.Windows.Forms.ToolStripStatusLabel();
             this.lblTotalPages = new System.Windows.Forms.ToolStripStatusLabel();
             this.lblSelected = new System.Windows.Forms.ToolStripStatusLabel();
+            this.lblUpdate = new System.Windows.Forms.ToolStripStatusLabel();
             this.btnSettings = new System.Windows.Forms.Button();
-            this.lnkUpdateAvailable = new System.Windows.Forms.ToolStripStatusLabel();
+            this.updateCheckWorker = new System.ComponentModel.BackgroundWorker();
             ((System.ComponentModel.ISupportInitialize)(this.dgvFilePages)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.dgvCounters)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
@@ -248,7 +249,7 @@ namespace ProFileCounter
             this.lblTotalFiles,
             this.lblTotalPages,
             this.lblSelected,
-            this.lnkUpdateAvailable});
+            this.lblUpdate});
             this.statusStrip1.Location = new System.Drawing.Point(1, 247);
             this.statusStrip1.Name = "statusStrip1";
             this.statusStrip1.Size = new System.Drawing.Size(572, 24);
@@ -276,6 +277,15 @@ namespace ProFileCounter
             this.lblSelected.Size = new System.Drawing.Size(67, 19);
             this.lblSelected.Text = "Selected: 0";
             // 
+            // lblUpdate
+            // 
+            this.lblUpdate.Enabled = false;
+            this.lblUpdate.IsLink = true;
+            this.lblUpdate.Name = "lblUpdate";
+            this.lblUpdate.Size = new System.Drawing.Size(299, 19);
+            this.lblUpdate.Spring = true;
+            this.lblUpdate.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
+            // 
             // btnSettings
             // 
             this.btnSettings.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
@@ -287,14 +297,10 @@ namespace ProFileCounter
             this.btnSettings.UseVisualStyleBackColor = true;
             this.btnSettings.Click += new System.EventHandler(this.btnSettings_Click);
             // 
-            // lnkUpdateAvailable
+            // updateCheckWorker
             // 
-            this.lnkUpdateAvailable.IsLink = true;
-            this.lnkUpdateAvailable.Name = "lnkUpdateAvailable";
-            this.lnkUpdateAvailable.Size = new System.Drawing.Size(330, 19);
-            this.lnkUpdateAvailable.Spring = true;
-            this.lnkUpdateAvailable.Text = "New version is available!";
-            this.lnkUpdateAvailable.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
+            this.updateCheckWorker.DoWork += new System.ComponentModel.DoWorkEventHandler(this.updateCheckWorker_DoWork);
+            this.updateCheckWorker.RunWorkerCompleted += new System.ComponentModel.RunWorkerCompletedEventHandler(this.updateCheckWorker_RunWorkerCompleted);
             // 
             // MainForm
             // 
@@ -349,6 +355,7 @@ namespace ProFileCounter
         private System.Windows.Forms.ToolStripStatusLabel lblTotalPages;
         private System.Windows.Forms.ToolStripStatusLabel lblSelected;
         private System.Windows.Forms.Button btnSettings;
-        private System.Windows.Forms.ToolStripStatusLabel lnkUpdateAvailable;
+        private System.Windows.Forms.ToolStripStatusLabel lblUpdate;
+        private System.ComponentModel.BackgroundWorker updateCheckWorker;
 	}
 }
