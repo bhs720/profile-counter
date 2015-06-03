@@ -105,9 +105,12 @@ namespace ProFileCounter
                         matchingFilesReport.AppendLine();
                     }
                 }
-                using (var reportWindow = new MatchingFilesReportWindow(matchingFilesReport.ToString()))
+                if (!string.IsNullOrWhiteSpace(matchingFilesReport.ToString()))
                 {
-                    reportWindow.ShowDialog(this);
+                    using (var reportWindow = new MatchingFilesReportWindow(matchingFilesReport.ToString()))
+                    {
+                        reportWindow.ShowDialog(this);
+                    }
                 }
             }
 		}

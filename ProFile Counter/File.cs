@@ -2,7 +2,6 @@
 using System.IO;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Text.RegularExpressions;
 using System.Security.Cryptography;
 
 namespace ProFileCounter
@@ -21,7 +20,6 @@ namespace ProFileCounter
 
         public void ComputeHash()
         {
-            //throw new Exception("Testing hash exception");
             var hex = new System.Text.StringBuilder();
             using (var md5 = MD5.Create())
             {
