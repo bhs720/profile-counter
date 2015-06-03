@@ -1,2 +1,2 @@
-version:3.1
-link:https://bhs720.github.io/profile-counter/builds/ProFile Counter 3.1.msi
+version=3.1
+link=https://bhs720.github.io/profile-counter/builds/ProFile Counter 3.1.msi
