@@ -15,6 +15,23 @@ h1 {
 	display: inline;
 }
 
+.post {
+	border: 1px solid #9c9c9c;
+	background-color: #fcfcfc;
+	padding: 4px;
+	margin-bottom: 12px;
+}
+
+.postDate {
+	font-size: 8pt;
+	font-style: italic;
+	padding: 4px;
+}
+
+.postContent {
+	padding: 4px;
+}
+
 #head {
 	height: 64px;
 	margin-bottom: 24px;
