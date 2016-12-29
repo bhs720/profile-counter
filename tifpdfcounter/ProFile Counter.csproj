@@ -6,8 +6,8 @@
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <OutputType>WinExe</OutputType>
-    <RootNamespace>TIFPDFCounter</RootNamespace>
-    <AssemblyName>TIFPDFCounter</AssemblyName>
+    <RootNamespace>ProFileCounter</RootNamespace>
+    <AssemblyName>ProFile Counter</AssemblyName>
     <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RunPostBuildEvent>OnBuildSuccess</RunPostBuildEvent>
@@ -178,7 +178,6 @@
     <None Include="packages.config">
       <SubType>Designer</SubType>
     </None>
-    <Content Include="PageStore.xml" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="FileAnalyzerErrors.resx">
