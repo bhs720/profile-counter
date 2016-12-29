@@ -28,7 +28,7 @@ namespace TIFPDFCounter
             lblAppVersion.Text = "Version " + Application.ProductVersion;
             lblAppWebSite.Text = "https://bhs720.github.io/profile-counter";
 
-            txtColorSensitivity.Text = (100 - FileAnalyzer.ColorThreshold * 100).ToString();
+            txtColorSensitivity.Text = Math.Round((100 - FileAnalyzer.ColorThreshold * 100)).ToString();
             cbColorAnalysis.Checked = Settings.UserSettings1.PerformColorAnalysis;
             txtColorSensitivity.Enabled = cbColorAnalysis.Checked;
             tbColorSensitivity.Enabled = cbColorAnalysis.Checked;
