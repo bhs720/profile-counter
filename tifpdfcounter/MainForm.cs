@@ -88,7 +88,7 @@ namespace TIFPDFCounter
                 }
             }
 
-            foreach (var file in LoadedFiles)
+            foreach (var file in tpcFiles)
             {
                 string fileName = Path.GetFileName(file.FileName);
                 for (int i = 0; i < file.Pages.Length; i++)
