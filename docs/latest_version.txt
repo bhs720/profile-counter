@@ -1,2 +1,0 @@
-version=3.0
-link=https://bhs720.github.io/profile-counter/builds/ProFileCounter3.0Setup.exe
