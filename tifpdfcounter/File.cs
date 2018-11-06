@@ -3,7 +3,6 @@ using System.IO;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
-using BitMiracle.LibTiff.Classic;
 using System.Security.Cryptography;
 
 namespace TIFPDFCounter

@@ -93,9 +93,6 @@
   </PropertyGroup>
   <PropertyGroup />
   <ItemGroup>
-    <Reference Include="BitMiracle.LibTiff.NET">
-      <HintPath>packages\BitMiracle.LibTiff.NET.2.4.500.0\lib\net20\BitMiracle.LibTiff.NET.dll</HintPath>
-    </Reference>
     <Reference Include="Microsoft.CSharp">
       <RequiredTargetFramework>4.0</RequiredTargetFramework>
     </Reference>
@@ -175,9 +172,6 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="tpcIcon.ico" />
-    <None Include="packages.config">
-      <SubType>Designer</SubType>
-    </None>
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="FileAnalyzerErrors.resx">
