@@ -3,12 +3,12 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 2013
 VisualStudioVersion = 12.0.40629.0
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ProFile Counter", "ProFile Counter.csproj", "{C56DB532-5B4A-418B-B9B9-AFB42296D698}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ProFile Counter", "app\ProFile Counter.csproj", "{C56DB532-5B4A-418B-B9B9-AFB42296D698}"
 	ProjectSection(ProjectDependencies) = postProject
 		{504BC5FF-3E8C-4926-BB5B-FB22079CE6DF} = {504BC5FF-3E8C-4926-BB5B-FB22079CE6DF}
 	EndProjectSection
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "mupdf", "..\mupdf\mupdf.vcxproj", "{504BC5FF-3E8C-4926-BB5B-FB22079CE6DF}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "mupdf", "mupdf\mupdf.vcxproj", "{504BC5FF-3E8C-4926-BB5B-FB22079CE6DF}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
