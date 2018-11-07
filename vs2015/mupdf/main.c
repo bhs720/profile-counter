@@ -4,8 +4,12 @@
 
 int main(int argc, char **argv)
 {
+	
 	char *filename = argv[1];
-	float color_threshold = argc == 3 ? atof(argv[2]) : 0;
+	float color_threshold = argc >= 3 ? atof(argv[2]) : 0;
+	int check_pixels = argc >= 4 ? atoi(argv[3]) : 1;
+	int test_options = check_pixels ? FZ_TEST_OPT_IMAGES | FZ_TEST_OPT_SHADINGS : 0;
+
 	fz_context *ctx = fz_new_context(NULL, NULL, FZ_STORE_DEFAULT);
 	fz_register_document_handlers(ctx);
 	fz_document *doc = fz_open_document(ctx, filename);
@@ -27,10 +31,10 @@ int main(int argc, char **argv)
 		fz_bound_page(ctx, page, &bounds);
 		fprintf(stdout, "Size=%f,%f ", bounds.x1 - bounds.x0, bounds.y1 - bounds.y0);
 
-		if (argc == 3)
+		if (argc >= 3)
 		{
 			int is_color = -1;
-			fz_device *dev = fz_new_test_device(ctx, &is_color, color_threshold, FZ_TEST_OPT_IMAGES | FZ_TEST_OPT_SHADINGS, NULL);
+			fz_device *dev = fz_new_test_device(ctx, &is_color, color_threshold, test_options, NULL);
 			fz_enable_device_hints(ctx, dev, FZ_NO_CACHE | FZ_DONT_INTERPOLATE_IMAGES);
 			fz_run_page(ctx, page, dev, &fz_identity, NULL);
 			fz_drop_device(ctx, dev);
