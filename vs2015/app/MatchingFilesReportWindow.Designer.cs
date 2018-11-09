@@ -56,7 +56,7 @@
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(698, 327);
+            this.ClientSize = new System.Drawing.Size(698, 365);
             this.Controls.Add(this.btnOpenFolder);
             this.Controls.Add(this.treeView1);
             this.MaximizeBox = false;

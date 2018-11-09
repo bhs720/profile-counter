@@ -31,7 +31,7 @@ namespace TIFPDFCounter
                 var root = treeView1.Nodes.Add(hash.Key);
                 foreach (var file in hash)
                 {
-                    var child = new TreeNode(file.FileName);
+                    var child = new TreeNode(file.Filename);
                     child.Tag = file;
                     root.Nodes.Add(child);
                 }
@@ -46,7 +46,7 @@ namespace TIFPDFCounter
                 var file = node.Tag as TPCFile;
                 if (file != null)
                 {
-                    string path = System.IO.Path.GetDirectoryName(file.FileName);
+                    string path = System.IO.Path.GetDirectoryName(file.Filename);
                     System.Diagnostics.Process.Start(path);
                 }
                 

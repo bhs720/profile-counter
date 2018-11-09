@@ -47,20 +47,20 @@ namespace TIFPDFCounter
         {
             btnCancel.Text = "Cancelling...";
             btnCancel.Enabled = false;
-            analyzer.Stop();
+            analyzer.Cancel();
         }
 
         void Analyze()
         {
             pbFile.Value = (fileNumber + 1) * 100 / fileList.Count;
             lblFileCount.Text = string.Format("{0} / {1}", fileNumber + 1, fileList.Count);
-            analyzer = new FileAnalyzer(fileList[fileNumber]);
+            analyzer = new FileAnalyzer(fileList[fileNumber], Settings.Instance.ColorThreshold, Settings.Instance.CheckImagePixels);
             analyzer.ProgressChanged += analyzer_ProgressChanged;
             analyzer.AnalysisComplete += analyzer_AnalysisComplete;
             analyzer.Go();
         }
 
-        void analyzer_AnalysisComplete(TPCFile result, string error)
+        void analyzer_AnalysisComplete(TPCFile result, bool cancelled, bool failed, string error)
         {
             if (InvokeRequired)
             {
@@ -68,23 +68,32 @@ namespace TIFPDFCounter
                 {
                     analyzer.ProgressChanged -= analyzer_ProgressChanged;
                     analyzer.AnalysisComplete -= analyzer_AnalysisComplete;
-                    if (analyzer.Cancelled)
+
+                    if (cancelled)
                     {
                         this.Close();
                         return;
                     }
-                    if (result == null)
-                        //MessageBox.Show("Could not open this file: \n" + fileList[fileNumber] + "\n" + error, "Problem", MessageBoxButtons.OK, MessageBoxIcon.Error);
+
+                    if (result == null || failed)
+                    {
                         errorForm.PushError(fileList[fileNumber], error);
+                    }
                     else
+                    {
                         tpcFiles.Add(result);
-                    Debug.WriteLine("Analysis complete error: " + error);
+                    }   
+                    
                     fileNumber++;
 
                     if (fileNumber == fileList.Count)
+                    {
                         EndBatch();
+                    }
                     else
+                    {
                         Analyze();
+                    }   
                 });
             }
         }

@@ -21,7 +21,8 @@ namespace TIFPDFCounter
 
         public bool CountIfMatched(TPCFilePage tpcFilePage)
         {
-            if (pageSize == null || pageSize.IsMatch(tpcFilePage.Width, tpcFilePage.Height))
+            // null page size means this is the "unknown" page size counter
+            if (pageSize == null || pageSize.Matches(tpcFilePage.Width, tpcFilePage.Height))
             {
                 switch (tpcFilePage.ColorMode)
                 {

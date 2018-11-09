@@ -27,26 +27,26 @@ namespace TIFPDFCounter
             lblAppName.Text = Application.ProductName;
             lblAppVersion.Text = "Version " + Application.ProductVersion;
             lblAppWebSite.Text = "https://bhs720.github.io/profile-counter";
-
-            txtColorSensitivity.Text = Math.Round((100 - FileAnalyzer.ColorThreshold * 100)).ToString();
-            cbColorAnalysis.Checked = Settings.UserSettings1.PerformColorAnalysis;
-            txtColorSensitivity.Enabled = cbColorAnalysis.Checked;
-            tbColorSensitivity.Enabled = cbColorAnalysis.Checked;
-            cbDuplicateFiles.Checked = Settings.UserSettings1.CheckForDuplicateFiles;
+            
+            txtColorSensitivity.Text = Math.Round((100 - Settings.Instance.ColorThreshold * 100)).ToString();
+            chkColorAnalysis.Checked = Settings.Instance.PerformColorAnalysis;
+            groupBox1.Enabled = chkColorAnalysis.Checked;
+            chkDuplicateFiles.Checked = Settings.Instance.CheckForDuplicateFiles;
+            chkImagePixels.Checked = Settings.Instance.CheckImagePixels;
+            chkUpdates.Checked = Settings.Instance.CheckForProgramUpdates;
         }
 
 		void SettingsFormClosing(object sender, FormClosingEventArgs e)
 		{
             if (DialogResult == DialogResult.OK)
             {
-                if (cbColorAnalysis.Checked)
+                if (chkColorAnalysis.Checked)
                 {
                     try
                     {
-                        int value = int.Parse(txtColorSensitivity.Text);
-                        float valueF = (100 - value) / (float)100;
-                        FileAnalyzer.ColorThreshold = valueF;
-                        Settings.UserSettings1.PDFColorThreshold = valueF;
+                        int sensitivity = int.Parse(txtColorSensitivity.Text);
+                        decimal threshold = (100 - sensitivity) / (decimal)100;
+                        Settings.Instance.ColorThreshold = threshold;
                     }
                     catch (Exception ex)
                     {
@@ -55,8 +55,9 @@ namespace TIFPDFCounter
                     }
                 }
 
-                Settings.UserSettings1.CheckForDuplicateFiles = cbDuplicateFiles.Checked;
-                Settings.UserSettings1.PerformColorAnalysis = cbColorAnalysis.Checked;
+                Settings.Instance.CheckImagePixels = chkImagePixels.Checked;
+                Settings.Instance.CheckForDuplicateFiles = chkDuplicateFiles.Checked;
+                Settings.Instance.PerformColorAnalysis = chkColorAnalysis.Checked;
                 Settings.Save();
             }
 		}
@@ -73,9 +74,7 @@ namespace TIFPDFCounter
 
         private void cbColorAnalysis_CheckedChanged(object sender, EventArgs e)
         {
-            btnSetDefault.Enabled = cbColorAnalysis.Checked;
-            txtColorSensitivity.Enabled = cbColorAnalysis.Checked;
-            tbColorSensitivity.Enabled = cbColorAnalysis.Checked;
+            groupBox1.Enabled = chkColorAnalysis.Checked;
         }
 
         private void txtColorSensitivity_TextChanged(object sender, EventArgs e)

@@ -6,19 +6,17 @@ namespace TIFPDFCounter
 	
 	public class TPCFilePage
 	{
-		readonly float width;
-		readonly float height;
-		readonly ColorMode colorMode;
-		
-		public TPCFilePage(float width, float height, ColorMode colorMode)
+		public TPCFilePage(int pageNumber, decimal width, decimal height, ColorMode colorMode)
 		{
-			this.width = width;
-			this.height = height;
-			this.colorMode = colorMode;
+            PageNumber = pageNumber;
+            Width = width;
+            Height = height;
+            ColorMode = colorMode;
 		}
 		
-		public float Width { get { return width; } }
-		public float Height { get { return height; } }
-		public ColorMode ColorMode { get { return colorMode; } }
+        public int PageNumber { get; private set; }
+        public decimal Width { get; private set; }
+        public decimal Height { get; private set; }
+        public ColorMode ColorMode { get; private set; }
 	}
 }

@@ -54,11 +54,13 @@ namespace TIFPDFCounter
             this.label3 = new System.Windows.Forms.Label();
             this.label2 = new System.Windows.Forms.Label();
             this.tbColorSensitivity = new System.Windows.Forms.TrackBar();
-            this.cbColorAnalysis = new System.Windows.Forms.CheckBox();
+            this.chkColorAnalysis = new System.Windows.Forms.CheckBox();
             this.lblAppName = new System.Windows.Forms.Label();
             this.lblAppVersion = new System.Windows.Forms.Label();
             this.lblAppWebSite = new System.Windows.Forms.LinkLabel();
-            this.cbDuplicateFiles = new System.Windows.Forms.CheckBox();
+            this.chkDuplicateFiles = new System.Windows.Forms.CheckBox();
+            this.chkUpdates = new System.Windows.Forms.CheckBox();
+            this.chkImagePixels = new System.Windows.Forms.CheckBox();
             this.groupBox1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.tbColorSensitivity)).BeginInit();
             this.SuspendLayout();
@@ -66,7 +68,7 @@ namespace TIFPDFCounter
             // btnOK
             // 
             this.btnOK.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
-            this.btnOK.Location = new System.Drawing.Point(133, 264);
+            this.btnOK.Location = new System.Drawing.Point(133, 311);
             this.btnOK.Name = "btnOK";
             this.btnOK.Size = new System.Drawing.Size(75, 23);
             this.btnOK.TabIndex = 1;
@@ -78,7 +80,7 @@ namespace TIFPDFCounter
             // 
             this.btnCancel.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
             this.btnCancel.DialogResult = System.Windows.Forms.DialogResult.Cancel;
-            this.btnCancel.Location = new System.Drawing.Point(214, 264);
+            this.btnCancel.Location = new System.Drawing.Point(214, 311);
             this.btnCancel.Name = "btnCancel";
             this.btnCancel.Size = new System.Drawing.Size(75, 23);
             this.btnCancel.TabIndex = 2;
@@ -96,23 +98,23 @@ namespace TIFPDFCounter
             // 
             // groupBox1
             // 
+            this.groupBox1.Controls.Add(this.chkImagePixels);
             this.groupBox1.Controls.Add(this.btnSetDefault);
             this.groupBox1.Controls.Add(this.txtColorSensitivity);
             this.groupBox1.Controls.Add(this.label4);
             this.groupBox1.Controls.Add(this.label3);
             this.groupBox1.Controls.Add(this.label2);
             this.groupBox1.Controls.Add(this.tbColorSensitivity);
-            this.groupBox1.Controls.Add(this.cbColorAnalysis);
-            this.groupBox1.Location = new System.Drawing.Point(13, 80);
+            this.groupBox1.Location = new System.Drawing.Point(12, 79);
             this.groupBox1.Name = "groupBox1";
             this.groupBox1.Padding = new System.Windows.Forms.Padding(12);
-            this.groupBox1.Size = new System.Drawing.Size(276, 117);
+            this.groupBox1.Size = new System.Drawing.Size(277, 145);
             this.groupBox1.TabIndex = 0;
             this.groupBox1.TabStop = false;
             // 
             // btnSetDefault
             // 
-            this.btnSetDefault.Location = new System.Drawing.Point(167, 27);
+            this.btnSetDefault.Location = new System.Drawing.Point(167, 54);
             this.btnSetDefault.Name = "btnSetDefault";
             this.btnSetDefault.Size = new System.Drawing.Size(75, 23);
             this.btnSetDefault.TabIndex = 10;
@@ -122,7 +124,7 @@ namespace TIFPDFCounter
             // 
             // txtColorSensitivity
             // 
-            this.txtColorSensitivity.Location = new System.Drawing.Point(105, 29);
+            this.txtColorSensitivity.Location = new System.Drawing.Point(105, 56);
             this.txtColorSensitivity.Name = "txtColorSensitivity";
             this.txtColorSensitivity.Size = new System.Drawing.Size(56, 20);
             this.txtColorSensitivity.TabIndex = 9;
@@ -149,7 +151,7 @@ namespace TIFPDFCounter
             // label2
             // 
             this.label2.AutoSize = true;
-            this.label2.Location = new System.Drawing.Point(15, 32);
+            this.label2.Location = new System.Drawing.Point(15, 59);
             this.label2.Name = "label2";
             this.label2.Size = new System.Drawing.Size(84, 13);
             this.label2.TabIndex = 6;
@@ -157,25 +159,25 @@ namespace TIFPDFCounter
             // 
             // tbColorSensitivity
             // 
-            this.tbColorSensitivity.Location = new System.Drawing.Point(15, 57);
+            this.tbColorSensitivity.Location = new System.Drawing.Point(15, 95);
             this.tbColorSensitivity.Maximum = 100;
             this.tbColorSensitivity.Name = "tbColorSensitivity";
-            this.tbColorSensitivity.Size = new System.Drawing.Size(246, 45);
+            this.tbColorSensitivity.Size = new System.Drawing.Size(247, 45);
             this.tbColorSensitivity.TabIndex = 5;
             this.tbColorSensitivity.TickFrequency = 10;
             this.tbColorSensitivity.Value = 75;
             this.tbColorSensitivity.Scroll += new System.EventHandler(this.tbColorSensitivity_Scroll);
             // 
-            // cbColorAnalysis
+            // chkColorAnalysis
             // 
-            this.cbColorAnalysis.AutoSize = true;
-            this.cbColorAnalysis.Location = new System.Drawing.Point(15, 0);
-            this.cbColorAnalysis.Name = "cbColorAnalysis";
-            this.cbColorAnalysis.Size = new System.Drawing.Size(130, 17);
-            this.cbColorAnalysis.TabIndex = 3;
-            this.cbColorAnalysis.Text = "Perform Color Analysis";
-            this.cbColorAnalysis.UseVisualStyleBackColor = true;
-            this.cbColorAnalysis.CheckedChanged += new System.EventHandler(this.cbColorAnalysis_CheckedChanged);
+            this.chkColorAnalysis.AutoSize = true;
+            this.chkColorAnalysis.Location = new System.Drawing.Point(27, 79);
+            this.chkColorAnalysis.Name = "chkColorAnalysis";
+            this.chkColorAnalysis.Size = new System.Drawing.Size(130, 17);
+            this.chkColorAnalysis.TabIndex = 3;
+            this.chkColorAnalysis.Text = "Perform Color Analysis";
+            this.chkColorAnalysis.UseVisualStyleBackColor = true;
+            this.chkColorAnalysis.CheckedChanged += new System.EventHandler(this.cbColorAnalysis_CheckedChanged);
             // 
             // lblAppName
             // 
@@ -205,15 +207,35 @@ namespace TIFPDFCounter
             this.lblAppWebSite.Text = "App Web Site";
             this.lblAppWebSite.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.LinkLabel1LinkClicked);
             // 
-            // cbDuplicateFiles
+            // chkDuplicateFiles
             // 
-            this.cbDuplicateFiles.AutoSize = true;
-            this.cbDuplicateFiles.Location = new System.Drawing.Point(28, 212);
-            this.cbDuplicateFiles.Name = "cbDuplicateFiles";
-            this.cbDuplicateFiles.Size = new System.Drawing.Size(139, 17);
-            this.cbDuplicateFiles.TabIndex = 4;
-            this.cbDuplicateFiles.Text = "Check for duplicate files";
-            this.cbDuplicateFiles.UseVisualStyleBackColor = true;
+            this.chkDuplicateFiles.AutoSize = true;
+            this.chkDuplicateFiles.Location = new System.Drawing.Point(27, 240);
+            this.chkDuplicateFiles.Name = "chkDuplicateFiles";
+            this.chkDuplicateFiles.Size = new System.Drawing.Size(139, 17);
+            this.chkDuplicateFiles.TabIndex = 4;
+            this.chkDuplicateFiles.Text = "Check for duplicate files";
+            this.chkDuplicateFiles.UseVisualStyleBackColor = true;
+            // 
+            // chkUpdates
+            // 
+            this.chkUpdates.AutoSize = true;
+            this.chkUpdates.Location = new System.Drawing.Point(27, 263);
+            this.chkUpdates.Name = "chkUpdates";
+            this.chkUpdates.Size = new System.Drawing.Size(163, 17);
+            this.chkUpdates.TabIndex = 7;
+            this.chkUpdates.Text = "Check for updates on startup";
+            this.chkUpdates.UseVisualStyleBackColor = true;
+            // 
+            // chkImagePixels
+            // 
+            this.chkImagePixels.AutoSize = true;
+            this.chkImagePixels.Location = new System.Drawing.Point(15, 28);
+            this.chkImagePixels.Name = "chkImagePixels";
+            this.chkImagePixels.Size = new System.Drawing.Size(117, 17);
+            this.chkImagePixels.TabIndex = 11;
+            this.chkImagePixels.Text = "Check image pixels";
+            this.chkImagePixels.UseVisualStyleBackColor = true;
             // 
             // SettingsWindow
             // 
@@ -221,8 +243,10 @@ namespace TIFPDFCounter
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.CancelButton = this.btnCancel;
-            this.ClientSize = new System.Drawing.Size(301, 299);
-            this.Controls.Add(this.cbDuplicateFiles);
+            this.ClientSize = new System.Drawing.Size(301, 346);
+            this.Controls.Add(this.chkColorAnalysis);
+            this.Controls.Add(this.chkUpdates);
+            this.Controls.Add(this.chkDuplicateFiles);
             this.Controls.Add(this.lblAppWebSite);
             this.Controls.Add(this.lblAppVersion);
             this.Controls.Add(this.lblAppName);
@@ -250,13 +274,15 @@ namespace TIFPDFCounter
 
         }
 
-        private System.Windows.Forms.CheckBox cbColorAnalysis;
-        private System.Windows.Forms.CheckBox cbDuplicateFiles;
+        private System.Windows.Forms.CheckBox chkColorAnalysis;
+        private System.Windows.Forms.CheckBox chkDuplicateFiles;
         private System.Windows.Forms.Label label4;
         private System.Windows.Forms.Label label3;
         private System.Windows.Forms.Label label2;
         private System.Windows.Forms.TrackBar tbColorSensitivity;
         private System.Windows.Forms.TextBox txtColorSensitivity;
         private System.Windows.Forms.Button btnSetDefault;
-	}
+        private System.Windows.Forms.CheckBox chkUpdates;
+        private System.Windows.Forms.CheckBox chkImagePixels;
+    }
 }

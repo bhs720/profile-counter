@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Diagnostics;
 using System.Windows.Forms;
 
@@ -10,34 +11,27 @@ namespace TIFPDFCounter
     public class FileAnalyzer
     {
         Process process;
-        TPCFile result;
-
-        bool cancelled;
-
-        string fileName;
-        string error;
 
         public delegate void ProgressChangedEventHandler(int completed, int total);
-        public delegate void AnalysisCompleteEventHandler(TPCFile result, string error);
+        public delegate void AnalysisCompleteEventHandler(TPCFile result, bool cancelled, bool failed, string errors);
         public event ProgressChangedEventHandler ProgressChanged;
         public event AnalysisCompleteEventHandler AnalysisComplete;
 
-        public static float ColorThreshold = 0.25f;
+        public string Filename { get; private set; }
+        public bool Cancelled { get; private set; }
+        public bool Failed { get; private set; }
+        public TPCFile Result { get; private set; }
+        public StringBuilder Errors { get; private set; }
 
-        public bool Cancelled { get { return cancelled; } }
-
-        public FileAnalyzer(string fileName)
+        public FileAnalyzer(string filename, decimal threshold, bool checkPixels)
         {
-            this.fileName = fileName;
-            cancelled = false;
+            Filename = filename;
+            Cancelled = false;
+            Errors = new StringBuilder();
             process = new Process();
             process.StartInfo.FileName = @"mupdf.exe";
-            string args = null;
 
-            if (Settings.UserSettings1.PerformColorAnalysis)
-                args = string.Format(@"""{0}"" {1}", fileName, ColorThreshold.ToString());
-            else
-                args = string.Format(@"""{0}""", fileName);
+            string args = string.Format("\"{0}\" {1} {2}", filename, threshold, (checkPixels ? "1" : "0"));
             
             process.StartInfo.Arguments = Encoding.Default.GetString(Encoding.UTF8.GetBytes(args));
             process.StartInfo.CreateNoWindow = true;
@@ -55,87 +49,102 @@ namespace TIFPDFCounter
             process.Start();
             process.BeginErrorReadLine();
             process.BeginOutputReadLine();
-            Debug.WriteLine("FileAnalyzer started");
+            Debug.Print("FileAnalyzer started");
         }
 
-        public void Stop()
+        public void Cancel()
         {
-            Debug.WriteLine("Stopping FileAnalyzer");
-            try { process.Kill(); }
-            catch (Exception) { }
-            cancelled = true;
+            Debug.Print("Cancel FileAnalyzer");
+            Result = null;
+            Cancelled = true;
+            Kill();
+        }
+
+        public void Fail(string message)
+        {
+            Debug.Print("Fail FileAnalyzer: " + message);
+            Errors.AppendLine(message);
+            Result = null;
+            Failed = true;
+            Kill();
+        }
+
+        private void Kill()
+        {
+            if (!process.HasExited)
+            {
+                try { process.Kill(); }
+                catch { }
+            }
         }
 
         void process_ErrorDataReceived(object sender, DataReceivedEventArgs e)
         {
             if (!string.IsNullOrEmpty(e.Data))
-                error += e.Data + "\n";
+                Errors.AppendLine(e.Data);
         }
 
         void process_Exited(object sender, EventArgs e)
         {
             process.WaitForExit();
-            Debug.WriteLine("mupdf exited, Exit Code: " + process.ExitCode);
             if (process.ExitCode != 0)
-                result = null;
+            {
+                Fail("Mupdf exit code: " + process.ExitCode);
+            }
             
-            AnalysisComplete.Invoke(this.result, error);
-            process.Dispose();
+            AnalysisComplete.Invoke(Result, Cancelled, Failed, Errors.ToString());
         }
 
         void process_OutputDataReceived(object sender, DataReceivedEventArgs e)
         {
-            if (!string.IsNullOrEmpty(e.Data) && !this.cancelled)
+            if (!string.IsNullOrEmpty(e.Data) && !Failed && !Cancelled)
             {
-                System.Diagnostics.Debug.WriteLine(e.Data);
-                string[] line = e.Data.Split(' ');
-                if (line.Length == 1)
+                Debug.Print(e.Data);
+                
+                var matchPageCount = Regex.Match(e.Data, @"^PageCount=(\d+)$");
+                var matchPageSpec = Regex.Match(e.Data, @"^Page=(\d+) Size=([\d\.]+),([\d\.]+) Color=(\d+)$");
+                
+                if (matchPageCount.Success && matchPageCount.Groups.Count == 2)
                 {
-                    string[] firstLine = line[0].Split('=');
-                    if (firstLine[0] == "PageCount")
-                    {
-                        int pageCount = int.Parse(firstLine[1]);
-                        result = new TPCFile(this.fileName, pageCount);
-                        ProgressChanged.Invoke(0, pageCount);
-                    }
-                    else
-                    {
-                        Debug.WriteLine("Error in FileAnalyzer: PageCount");
-                    }
+                    int pageCount = Convert.ToInt32(matchPageCount.Groups[1].Value);
+                    Result = new TPCFile(Filename, pageCount);
+                    ProgressChanged.Invoke(0, pageCount);
                 }
-                if (line.Length >= 2)
+                else if (matchPageSpec.Success && matchPageSpec.Groups.Count == 5)
                 {
-                    int pageNumber = -1;
-                    float width = -1.0f;
-                    float height = -1.0f;
-                    ColorMode colorMode = ColorMode.Unknown;
+                    if (Result == null)
+                    {
+                        Fail("Page spec came before page count");
+                        return;
+                    }
 
-                    if (line[0].Split('=')[0] == "Page")
+                    int pageNumber = Convert.ToInt32(matchPageSpec.Groups[1].Value);
+                    decimal width = Convert.ToDecimal(matchPageSpec.Groups[2].Value) / 72m; // Convert points to inches
+                    decimal height = Convert.ToDecimal(matchPageSpec.Groups[3].Value) / 72m; // Convert points to inches
+                    int color = Convert.ToInt32(matchPageSpec.Groups[4].Value);
+
+                    ColorMode cm;
+                    switch (color)
                     {
-                        pageNumber = int.Parse(line[0].Split('=')[1]);
+                        case 0:
+                            cm = ColorMode.BW;
+                            break;
+                        case 1:
+                        case 2:
+                            cm = ColorMode.Color;
+                            break;
+                        default:
+                            cm = ColorMode.Unknown;
+                            break;
                     }
-                    if (line[1].Split('=')[0] == "Size")
-                    {
-                        width = float.Parse(line[1].Split('=')[1].Split(',')[0]) / 72.0f;
-                        height = float.Parse(line[1].Split('=')[1].Split(',')[1]) / 72.0f;
-                    }
-                    if (line.Length == 3 && line[2].Split('=')[0] == "Color")
-                    {
-                        switch (int.Parse(line[2].Split('=')[1]))
-                        {
-                            case 0:
-                                colorMode = ColorMode.BW;
-                                break;
-                            case 1:
-                                colorMode = ColorMode.Color;
-                                break;
-                            default:
-                                colorMode = ColorMode.Unknown;
-                                break;
-                        }
-                    }
-                    result.Pages[pageNumber] = new TPCFilePage(width, height, colorMode);
-                    ProgressChanged.Invoke(pageNumber + 1, result.Pages.Length);
+
+                    Result.Pages.Add(new TPCFilePage(pageNumber, width, height, cm));
+                    ProgressChanged.Invoke(pageNumber, Result.PageCount);
+                }
+                else
+                {
+                    Fail("Text was not in an expected format: " + e.Data);
+                    return;
                 }
             }
         }

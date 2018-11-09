@@ -25,22 +25,23 @@ int main(int argc, char **argv)
 	int i;
 	for (i = 0; i < pagecount; i++)
 	{
-		fprintf(stdout, "Page=%i ", i);
+		fprintf(stdout, "Page=%i ", i + 1);
 		fz_page *page = fz_load_page(ctx, doc, i);
 		fz_rect bounds;
 		fz_bound_page(ctx, page, &bounds);
 		fprintf(stdout, "Size=%f,%f ", bounds.x1 - bounds.x0, bounds.y1 - bounds.y0);
 
+		int is_color = -1;
 		if (argc >= 3)
 		{
-			int is_color = -1;
+			
 			fz_device *dev = fz_new_test_device(ctx, &is_color, color_threshold, test_options, NULL);
 			fz_enable_device_hints(ctx, dev, FZ_NO_CACHE | FZ_DONT_INTERPOLATE_IMAGES);
 			fz_run_page(ctx, page, dev, &fz_identity, NULL);
 			fz_drop_device(ctx, dev);
 			fz_drop_page(ctx, page);
-			fprintf(stdout, "Color=%i", is_color);
 		}
+		fprintf(stdout, "Color=%i", is_color);
 		fprintf(stdout, "\n");
 		fflush(stdout);
 	}

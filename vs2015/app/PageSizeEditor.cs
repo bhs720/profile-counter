@@ -24,26 +24,26 @@ namespace TIFPDFCounter
             if (PageSize != null)
             {
                 txtName.Text = PageSize.Name;
-                txtWidthMin.Text = PageSize.Width.Min.ToString();
-                txtWidthMax.Text = PageSize.Width.Max.ToString();
-                txtHeightMin.Text = PageSize.Height.Min.ToString();
-                txtHeightMax.Text = PageSize.Height.Max.ToString();
+                txtWidthMin.Text = PageSize.MinWidth.ToString();
+                txtWidthMax.Text = PageSize.MaxWidth.ToString();
+                txtHeightMin.Text = PageSize.MinHeight.ToString();
+                txtHeightMax.Text = PageSize.MaxHeight.ToString();
             }
             else
             {
-                PageSize = new PageSize();
+                PageSize = new PageSize("", 0, 0, 0, 0, true);
             }
         }
 		
 		void BtnOKClick(object sender, System.EventArgs e)
 		{
-			float widthMin, widthMax, heightMin, heightMax;
+			decimal widthMin, widthMax, heightMin, heightMax;
             try
             {
-                widthMin = float.Parse(txtWidthMin.Text);
-                widthMax = float.Parse(txtWidthMax.Text);
-                heightMin = float.Parse(txtHeightMin.Text);
-                heightMax = float.Parse(txtHeightMax.Text);
+                widthMin = decimal.Parse(txtWidthMin.Text);
+                widthMax = decimal.Parse(txtWidthMax.Text);
+                heightMin = decimal.Parse(txtHeightMin.Text);
+                heightMax = decimal.Parse(txtHeightMax.Text);
                 if (widthMin < 0 || widthMax < 0 || heightMin < 0 || heightMax < 0)
                 {
                     throw new Exception("Page dimensions must be a positive number.");
@@ -53,10 +53,10 @@ namespace TIFPDFCounter
                     throw new Exception("Name cannot be blank.");
                 }
                 PageSize.Name = txtName.Text;
-                PageSize.Width.Min = widthMin;
-                PageSize.Width.Max = widthMax;
-                PageSize.Height.Min = heightMin;
-                PageSize.Height.Max = heightMax;
+                PageSize.MinWidth = widthMin;
+                PageSize.MaxWidth = widthMax;
+                PageSize.MinHeight = heightMin;
+                PageSize.MaxHeight = heightMax;
                 PageSize.Active = true;
                 DialogResult = DialogResult.OK;
                 Close();

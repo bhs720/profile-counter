@@ -25,14 +25,7 @@ namespace TIFPDFCounter
         List<PageSize> MasterPageList { get; set; }
         List<PageCounter> PageCounters { get; set; }
         List<TPCFile> LoadedFiles { get; set; }
-        IEnumerable<IGrouping<string,TPCFile>> MatchingFiles
-        {
-            get
-            {
-                return LoadedFiles.GroupBy(x => x.FileSize).Where(x => x.Count() > 1).SelectMany(x => x).GroupBy(x => x.MD5Hash).Where(x => x.Count() > 1);
-            }
-        }
-
+        
         protected override void OnDragEnter(DragEventArgs drgevent)
         {
             if (drgevent.Data.GetDataPresent(DataFormats.FileDrop))
@@ -44,7 +37,7 @@ namespace TIFPDFCounter
         {
             foreach (var tpcFile in LoadedFiles)
             {
-                if (tpcFile.FileName.Equals(filename))
+                if (tpcFile.Filename.Equals(filename))
                     throw new Exception("The file is already in the list.");
             }
         }
@@ -55,7 +48,15 @@ namespace TIFPDFCounter
             if (dropData == null || dropData.Length < 1)
                 return;
 
-            dropFiles = GatherFileList(dropData);
+            dropFiles = DiscoverFiles(dropData);
+
+            var duplicates = LoadedFiles.Select(x => x.Filename).Intersect(dropFiles).ToList();
+            if (duplicates.Count > 0)
+            {
+                MessageBox.Show(duplicates.Count + " files will be skipped because they are already in the list.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+
+            dropFiles = dropFiles.Except(duplicates).ToList();
 
             timer1.Enabled = true;
             timer1.Start();
@@ -64,21 +65,28 @@ namespace TIFPDFCounter
         List<string> dropFiles;
         void Timer1Tick(object sender, EventArgs e)
         {
+            timer1.Stop();
             timer1.Enabled = false;
+            
             if (dropFiles == null || dropFiles.Count == 0)
-                return;
-            List<TPCFile> tpcFiles;
+                return;                
+
+            List<TPCFile> processedFiles;
             using (var progressWindow = new ProgressWindow(dropFiles))
             {
                 progressWindow.ShowDialog(this);
-                tpcFiles = progressWindow.TPCFiles;
+                processedFiles = progressWindow.TPCFiles;
             }
 
-            LoadedFiles.AddRange(tpcFiles);
+            // add this batch to LoadedFiles
+            LoadedFiles.AddRange(processedFiles);
 
-            if (Settings.UserSettings1.CheckForDuplicateFiles)
+            if (Settings.Instance.CheckForDuplicateFiles)
             {
-                var matchingFiles = MatchingFiles;
+                var matchingFiles = LoadedFiles
+                    .GroupBy(x => x.FileSize).Where(x => x.Count() > 1).SelectMany(x => x)
+                    .GroupBy(x => x.MD5Hash).Where(x => x.Count() > 1);
+
                 if (matchingFiles.Count() > 0)
                 {
                     using (var reportWindow = new MatchingFilesReportWindow(matchingFiles))
@@ -88,13 +96,13 @@ namespace TIFPDFCounter
                 }
             }
 
-            foreach (var file in tpcFiles)
+            foreach (var file in processedFiles)
             {
-                string fileName = Path.GetFileName(file.FileName);
-                for (int i = 0; i < file.Pages.Length; i++)
+                string fileName = Path.GetFileName(file.Filename);
+                for (int i = 0; i < file.Pages.Count; i++)
                 {
-                    double width = Math.Round(file.Pages[i].Width, 2);
-                    double height = Math.Round(file.Pages[i].Height, 2);
+                    decimal width = Math.Round(file.Pages[i].Width, 2);
+                    decimal height = Math.Round(file.Pages[i].Height, 2);
                     string size = string.Format("{0} \u00d7 {1}", width, height);
                     int rowIndex = dgvFilePages.Rows.Add(fileName, i + 1, file.Pages[i].ColorMode, size);
                     dgvFilePages.Rows[rowIndex].Tag = file.Pages[i];
@@ -105,42 +113,64 @@ namespace TIFPDFCounter
             DoPageSizeCount();
         }
 
+
+
         void UpdateUI()
         {
 
         }
 
-        private List<string> GatherFileList(string[] dropItems)
+        private List<string> DiscoverFiles(string[] dropItems)
         {
-            var dropFiles = new List<string>();
-            var message = new List<string>();
+            var discoveredFiles = new List<string>();
             foreach (var dropItem in dropItems)
             {
-                try
+                while (true)
                 {
-                    var attr = File.GetAttributes(dropItem);
-                    if ((attr & FileAttributes.Directory) == FileAttributes.Directory)
+                    try
                     {
-                        foreach (var file in Directory.EnumerateFiles(dropItem, "*.*", SearchOption.AllDirectories))
+                        var attr = File.GetAttributes(dropItem);
+                        if ((attr & FileAttributes.Directory) == FileAttributes.Directory)
                         {
-                            CheckFileIsInList(file);
-                            dropFiles.Add(file);
+                            foreach (var file in Directory.EnumerateFiles(dropItem, "*.*", SearchOption.AllDirectories))
+                            {
+                                discoveredFiles.Add(file);
+                            }
+                        }
+                        else
+                        {
+                            discoveredFiles.Add(dropItem);
                         }
                     }
-                    else
+                    catch (Exception ex)
                     {
-                        CheckFileIsInList(dropItem);
-                        dropFiles.Add(dropItem);
+                        var dr = MessageBox.Show("Failed to discover item: " + dropItem + "\n" + ex.Message, ex.GetType().ToString(), MessageBoxButtons.AbortRetryIgnore);
+                        if (dr == DialogResult.Abort)
+                        {
+                            return discoveredFiles;
+                        }
+                        else if (dr == DialogResult.Retry)
+                        {
+                            continue;
+                        }
+                        else if (dr == DialogResult.Ignore)
+                        {
+                            break;
+                        }
+                        else
+                        {
+                            break;
+                        }
                     }
+
+                    break;
                 }
-                catch (Exception ex)
-                {
-                    message.Add(dropItem + ":" + ex.Message);
-                }
+                
             }
-            dropFiles.Sort(new NaturalStringComparer());
+
+            discoveredFiles.Sort(new NaturalStringComparer());
             
-            return dropFiles;
+            return discoveredFiles;
         }
 
         void DoPageSizeCount()
@@ -199,20 +229,19 @@ namespace TIFPDFCounter
             int totalPageCount = 0;
             foreach (var file in LoadedFiles)
             {
-                totalPageCount += file.Pages.Length;
+                totalPageCount += file.Pages.Count;
             }
             lblTotalPages.Text = "Total Pages: " + totalPageCount.ToString();
         }
 
-        void MainFormFormClosing(object sender, System.Windows.Forms.FormClosingEventArgs e)
+        void MainFormFormClosing(object sender, FormClosingEventArgs e)
         {
-            Settings.UserSettings1.PDFColorThreshold = FileAnalyzer.ColorThreshold;
-            Settings.UserSettings1.PageStore = MasterPageList;
-            Settings.UserSettings1.WindowState = WindowState;
+            Settings.Instance.PageStore = MasterPageList;
+            Settings.Instance.WindowState = WindowState;
             if (WindowState == FormWindowState.Normal)
             {
-                Settings.UserSettings1.WindowSize = Size;
-                Settings.UserSettings1.WindowLocation = Location;
+                Settings.Instance.WindowSize = Size;
+                Settings.Instance.WindowLocation = Location;
             }
             Settings.Save();
         }
@@ -220,13 +249,12 @@ namespace TIFPDFCounter
         void MainFormLoad(object sender, System.EventArgs e)
         {
             Settings.Load();
-            FileAnalyzer.ColorThreshold = Settings.UserSettings1.PDFColorThreshold;
-            Size = Settings.UserSettings1.WindowSize;
-            Location = Settings.UserSettings1.WindowLocation;
-            WindowState = Settings.UserSettings1.WindowState;
+            Size = Settings.Instance.WindowSize;
+            Location = Settings.Instance.WindowLocation;
+            WindowState = Settings.Instance.WindowState;
             if (WindowState == FormWindowState.Minimized)
                 WindowState = FormWindowState.Normal;
-            MasterPageList = Settings.UserSettings1.PageStore;
+            MasterPageList = Settings.Instance.PageStore;
         }
 
         void BtnManageClick(object sender, EventArgs e)
