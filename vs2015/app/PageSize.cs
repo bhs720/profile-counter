@@ -2,8 +2,8 @@
 
 namespace TIFPDFCounter
 {
-	public class PageSize
-	{
+    public class PageSize
+    {
         public PageSize()
         {
             Name = "";
@@ -18,7 +18,7 @@ namespace TIFPDFCounter
             this.MaxHeight = maxHeight;
             this.Active = active;
         }
-        
+
         public decimal MinWidth { get; set; }
         public decimal MinHeight { get; set; }
         public decimal MaxWidth { get; set; }
@@ -26,8 +26,8 @@ namespace TIFPDFCounter
         public string Name { get; set; }
         public bool Active { get; set; }
 
-		public bool IsMatch(decimal width, decimal height)
-		{
+        public bool IsMatch(decimal width, decimal height)
+        {
             if (width >= MinWidth && width <= MaxWidth && height >= MinHeight && height <= MaxHeight)
             {
                 return true;
@@ -38,12 +38,12 @@ namespace TIFPDFCounter
                 return true;
             }
 
-			return false;
-		}
-		
-		public PageSize Clone()
-		{
+            return false;
+        }
+
+        public PageSize Clone()
+        {
             return new PageSize(Name.Clone() as string, MinWidth, MaxWidth, MinHeight, MaxHeight, Active);
-		}
-	}
+        }
+    }
 }
