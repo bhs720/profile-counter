@@ -26,7 +26,7 @@ namespace TIFPDFCounter
         public string Name { get; set; }
         public bool Active { get; set; }
 
-		public bool Matches(decimal width, decimal height)
+		public bool IsMatch(decimal width, decimal height)
 		{
             if (width >= MinWidth && width <= MaxWidth && height >= MinHeight && height <= MaxHeight)
             {

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Windows.Forms;
 using System.Collections.Generic;
 
@@ -6,6 +7,9 @@ namespace TIFPDFCounter
 {
 	public partial class PageSizeManager : Form
 	{
+        /// <summary>
+        /// Return variable for edited page sizes
+        /// </summary>
         public List<PageSize> PageSizes { get; private set; }
 
 		public PageSizeManager()
@@ -16,33 +20,34 @@ namespace TIFPDFCounter
 		public PageSizeManager(List<PageSize> pageSizes)
 		{
 			InitializeComponent();
-            LoadPageSizes(pageSizes);
-		}
+            PutPageSizesIntoDataGridView(pageSizes);
+        }
 
-        private void LoadPageSizes(List<PageSize> pageSizes)
+        private void PutPageSizesIntoDataGridView(List<PageSize> pageSizes)
         {
             dgvManager.Rows.Clear();
-            // Store all page sizes in datagridview
+
             foreach (var pageSize in pageSizes)
             {
                 int rowIndex = dgvManager.Rows.Add(pageSize.Active, pageSize.Name);
-                dgvManager.Rows[rowIndex].Tag = pageSize.Clone();
+                dgvManager.Rows[rowIndex].Tag = pageSize;
             }
         }
 
-        private void SavePageSizes()
+        private List<PageSize> GetPageSizesFromDataGridView()
         {
-            // Gather up the page sizs and put them into a List<PageSize> to return to the caller.
-            PageSizes = new List<PageSize>();
+            var pageSizes = new List<PageSize>(dgvManager.Rows.Count);
             foreach (DataGridViewRow dgvr in dgvManager.Rows)
             {
-                var page = dgvr.Tag as PageSize;
-                page.Active = (bool)dgvr.Cells["active"].Value;
-                PageSizes.Add(page);
+                var ps = (PageSize)dgvr.Tag;
+                ps.Active = (bool)dgvr.Cells["active"].Value;
+                pageSizes.Add(ps);
             }
+
+            return pageSizes;
         }
-				
-		void BtnNewClick(object sender, System.EventArgs e)
+
+		private void BtnNewClick(object sender, System.EventArgs e)
 		{
 			using (var pse = new PageSizeEditor())
 			{
@@ -55,7 +60,7 @@ namespace TIFPDFCounter
 			}
 		}
 
-		void BtnEditClick(object sender, System.EventArgs e)
+		private void BtnEditClick(object sender, EventArgs e)
 		{
 			if (dgvManager.SelectedRows.Count == 0)
 				return;
@@ -78,21 +83,21 @@ namespace TIFPDFCounter
             }
         }
 
-		void BtnDeleteClick(object sender, System.EventArgs e)
+		private void BtnDeleteClick(object sender, EventArgs e)
 		{
 			if (dgvManager.SelectedRows.Count == 0)
 				return;
 			dgvManager.Rows.Remove(dgvManager.SelectedRows[0]);
 		}
 
-		void BtnOKClick(object sender, System.EventArgs e)
+		private void BtnOKClick(object sender, EventArgs e)
 		{
-            SavePageSizes();
+            PageSizes = GetPageSizesFromDataGridView();
 			DialogResult = DialogResult.OK;
 			Close();
 		}
 
-		void BumpRow(DataGridViewRow dgvr, int indexOffset)
+		private void BumpRow(DataGridViewRow dgvr, int indexOffset)
 		{
 			var pageSize = dgvr.Tag as PageSize;
 			int newIndex = dgvr.Index + indexOffset;
@@ -105,12 +110,12 @@ namespace TIFPDFCounter
 			dgvManager.Rows[newIndex].Selected = true;
 		}
 
-		void BtnUpClick(object sender, System.EventArgs e)
+        private void BtnUpClick(object sender, EventArgs e)
 		{
 			BumpRow(dgvManager.SelectedRows[0], -1);
 		}
 
-		void BtnDownClick(object sender, System.EventArgs e)
+        private void BtnDownClick(object sender, EventArgs e)
 		{
 			BumpRow(dgvManager.SelectedRows[0], 1);
 		}
@@ -120,7 +125,7 @@ namespace TIFPDFCounter
             var dr = MessageBox.Show("This will delete all of your page sizes and load the default standard sizes.", "Are you sure?", MessageBoxButtons.OKCancel, MessageBoxIcon.Exclamation);
             if (dr == DialogResult.OK)
             {
-                LoadPageSizes(Settings.DefaultPageStore);
+                PutPageSizesIntoDataGridView(Settings.DefaultPageStore);
             }   
         }
 

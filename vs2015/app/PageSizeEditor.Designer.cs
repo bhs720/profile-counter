@@ -55,14 +55,14 @@ namespace TIFPDFCounter
             this.txtName.Location = new System.Drawing.Point(79, 8);
             this.txtName.Name = "txtName";
             this.txtName.Size = new System.Drawing.Size(146, 20);
-            this.txtName.TabIndex = 0;
+            this.txtName.TabIndex = 1;
             // 
             // lblName
             // 
             this.lblName.Location = new System.Drawing.Point(12, 6);
             this.lblName.Name = "lblName";
             this.lblName.Size = new System.Drawing.Size(48, 23);
-            this.lblName.TabIndex = 3;
+            this.lblName.TabIndex = 0;
             this.lblName.Text = "Name:";
             this.lblName.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
             // 
@@ -71,7 +71,7 @@ namespace TIFPDFCounter
             this.lblWidth.Location = new System.Drawing.Point(12, 57);
             this.lblWidth.Name = "lblWidth";
             this.lblWidth.Size = new System.Drawing.Size(61, 23);
-            this.lblWidth.TabIndex = 4;
+            this.lblWidth.TabIndex = 2;
             this.lblWidth.Text = "Width (in)";
             this.lblWidth.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
             // 
@@ -80,7 +80,7 @@ namespace TIFPDFCounter
             this.lblHeight.Location = new System.Drawing.Point(12, 83);
             this.lblHeight.Name = "lblHeight";
             this.lblHeight.Size = new System.Drawing.Size(61, 23);
-            this.lblHeight.TabIndex = 5;
+            this.lblHeight.TabIndex = 7;
             this.lblHeight.Text = "Height (in)";
             this.lblHeight.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
             // 
@@ -90,7 +90,7 @@ namespace TIFPDFCounter
             this.btnCancel.Location = new System.Drawing.Point(150, 121);
             this.btnCancel.Name = "btnCancel";
             this.btnCancel.Size = new System.Drawing.Size(75, 23);
-            this.btnCancel.TabIndex = 6;
+            this.btnCancel.TabIndex = 11;
             this.btnCancel.Text = "Cancel";
             this.btnCancel.UseVisualStyleBackColor = true;
             // 
@@ -99,7 +99,7 @@ namespace TIFPDFCounter
             this.btnOK.Location = new System.Drawing.Point(69, 121);
             this.btnOK.Name = "btnOK";
             this.btnOK.Size = new System.Drawing.Size(75, 23);
-            this.btnOK.TabIndex = 5;
+            this.btnOK.TabIndex = 10;
             this.btnOK.Text = "OK";
             this.btnOK.UseVisualStyleBackColor = true;
             this.btnOK.Click += new System.EventHandler(this.BtnOKClick);
@@ -109,28 +109,28 @@ namespace TIFPDFCounter
             this.txtHeightMin.Location = new System.Drawing.Point(79, 85);
             this.txtHeightMin.Name = "txtHeightMin";
             this.txtHeightMin.Size = new System.Drawing.Size(70, 20);
-            this.txtHeightMin.TabIndex = 3;
+            this.txtHeightMin.TabIndex = 8;
             // 
             // txtWidthMin
             // 
             this.txtWidthMin.Location = new System.Drawing.Point(79, 59);
             this.txtWidthMin.Name = "txtWidthMin";
             this.txtWidthMin.Size = new System.Drawing.Size(70, 20);
-            this.txtWidthMin.TabIndex = 1;
+            this.txtWidthMin.TabIndex = 4;
             // 
             // txtWidthMax
             // 
             this.txtWidthMax.Location = new System.Drawing.Point(155, 59);
             this.txtWidthMax.Name = "txtWidthMax";
             this.txtWidthMax.Size = new System.Drawing.Size(70, 20);
-            this.txtWidthMax.TabIndex = 2;
+            this.txtWidthMax.TabIndex = 6;
             // 
             // txtHeightMax
             // 
             this.txtHeightMax.Location = new System.Drawing.Point(155, 85);
             this.txtHeightMax.Name = "txtHeightMax";
             this.txtHeightMax.Size = new System.Drawing.Size(70, 20);
-            this.txtHeightMax.TabIndex = 4;
+            this.txtHeightMax.TabIndex = 9;
             // 
             // label1
             // 
@@ -139,7 +139,7 @@ namespace TIFPDFCounter
             this.label1.Name = "label1";
             this.label1.Padding = new System.Windows.Forms.Padding(3, 0, 0, 0);
             this.label1.Size = new System.Drawing.Size(30, 13);
-            this.label1.TabIndex = 26;
+            this.label1.TabIndex = 3;
             this.label1.Text = "Min.";
             // 
             // label3
@@ -149,7 +149,7 @@ namespace TIFPDFCounter
             this.label3.Name = "label3";
             this.label3.Padding = new System.Windows.Forms.Padding(3, 0, 0, 0);
             this.label3.Size = new System.Drawing.Size(33, 13);
-            this.label3.TabIndex = 27;
+            this.label3.TabIndex = 5;
             this.label3.Text = "Max.";
             // 
             // PageSizeEditor

@@ -19,7 +19,7 @@ namespace TIFPDFCounter
 			PageSize = pageSize;
 		}
 
-        void PageSizeEditorLoad(object sender, System.EventArgs e)
+        void PageSizeEditorLoad(object sender, EventArgs e)
         {
             if (PageSize != null)
             {
@@ -35,7 +35,7 @@ namespace TIFPDFCounter
             }
         }
 		
-		void BtnOKClick(object sender, System.EventArgs e)
+		void BtnOKClick(object sender, EventArgs e)
 		{
 			decimal widthMin, widthMax, heightMin, heightMax;
             try

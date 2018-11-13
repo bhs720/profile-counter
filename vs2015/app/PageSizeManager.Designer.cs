@@ -103,7 +103,7 @@ namespace TIFPDFCounter
             this.btnCancel.Margin = new System.Windows.Forms.Padding(3, 3, 3, 7);
             this.btnCancel.Name = "btnCancel";
             this.btnCancel.Size = new System.Drawing.Size(75, 23);
-            this.btnCancel.TabIndex = 1;
+            this.btnCancel.TabIndex = 8;
             this.btnCancel.Text = "Cancel";
             this.btnCancel.UseVisualStyleBackColor = true;
             // 
@@ -114,7 +114,7 @@ namespace TIFPDFCounter
             this.btnOK.Margin = new System.Windows.Forms.Padding(3, 3, 3, 7);
             this.btnOK.Name = "btnOK";
             this.btnOK.Size = new System.Drawing.Size(75, 23);
-            this.btnOK.TabIndex = 2;
+            this.btnOK.TabIndex = 7;
             this.btnOK.Text = "OK";
             this.btnOK.UseVisualStyleBackColor = true;
             this.btnOK.Click += new System.EventHandler(this.BtnOKClick);
@@ -162,7 +162,7 @@ namespace TIFPDFCounter
             this.btnUp.Location = new System.Drawing.Point(516, 131);
             this.btnUp.Name = "btnUp";
             this.btnUp.Size = new System.Drawing.Size(23, 23);
-            this.btnUp.TabIndex = 6;
+            this.btnUp.TabIndex = 1;
             this.btnUp.Text = "▲";
             this.btnUp.UseVisualStyleBackColor = true;
             this.btnUp.Click += new System.EventHandler(this.BtnUpClick);
@@ -174,7 +174,7 @@ namespace TIFPDFCounter
             this.btnDown.Location = new System.Drawing.Point(516, 160);
             this.btnDown.Name = "btnDown";
             this.btnDown.Size = new System.Drawing.Size(23, 23);
-            this.btnDown.TabIndex = 7;
+            this.btnDown.TabIndex = 2;
             this.btnDown.Text = "▼";
             this.btnDown.UseVisualStyleBackColor = true;
             this.btnDown.Click += new System.EventHandler(this.BtnDownClick);
@@ -185,7 +185,7 @@ namespace TIFPDFCounter
             this.btnDefaults.Location = new System.Drawing.Point(251, 356);
             this.btnDefaults.Name = "btnDefaults";
             this.btnDefaults.Size = new System.Drawing.Size(75, 23);
-            this.btnDefaults.TabIndex = 8;
+            this.btnDefaults.TabIndex = 6;
             this.btnDefaults.Text = "Defaults";
             this.btnDefaults.UseVisualStyleBackColor = true;
             this.btnDefaults.Click += new System.EventHandler(this.btnDefaults_Click);

@@ -54,7 +54,7 @@ namespace TIFPDFCounter
         {
             pbFile.Value = (fileNumber + 1) * 100 / fileList.Count;
             lblFileCount.Text = string.Format("{0} / {1}", fileNumber + 1, fileList.Count);
-            analyzer = new FileAnalyzer(fileList[fileNumber], Settings.Instance.ColorThreshold, Settings.Instance.CheckImagePixels);
+            analyzer = new FileAnalyzer(fileList[fileNumber], Settings.Instance.PerformColorAnalysis, Settings.Instance.ColorThreshold, Settings.Instance.CheckImagePixels);
             analyzer.ProgressChanged += analyzer_ProgressChanged;
             analyzer.AnalysisComplete += analyzer_AnalysisComplete;
             analyzer.Go();

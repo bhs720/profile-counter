@@ -23,7 +23,7 @@ namespace TIFPDFCounter
         public TPCFile Result { get; private set; }
         public StringBuilder Errors { get; private set; }
 
-        public FileAnalyzer(string filename, decimal threshold, bool checkPixels)
+        public FileAnalyzer(string filename, bool checkColor, decimal colorThreshold, bool checkPixels)
         {
             Filename = filename;
             Cancelled = false;
@@ -31,7 +31,7 @@ namespace TIFPDFCounter
             process = new Process();
             process.StartInfo.FileName = @"mupdf.exe";
 
-            string args = string.Format("\"{0}\" {1} {2}", filename, threshold, (checkPixels ? "1" : "0"));
+            string args = string.Format("\"{0}\" {1} {2}", filename, (checkColor ? colorThreshold.ToString() : "-1"), (checkPixels ? "1" : "0"));
             
             process.StartInfo.Arguments = Encoding.Default.GetString(Encoding.UTF8.GetBytes(args));
             process.StartInfo.CreateNoWindow = true;
@@ -71,6 +71,7 @@ namespace TIFPDFCounter
 
         private void Kill()
         {
+            Debug.Print("Kill FileAnalyzer - already exited? {0}", process.HasExited);
             if (!process.HasExited)
             {
                 try { process.Kill(); }
@@ -86,10 +87,16 @@ namespace TIFPDFCounter
 
         void process_Exited(object sender, EventArgs e)
         {
+            // Wait to receive all of stdout
             process.WaitForExit();
             if (process.ExitCode != 0)
             {
                 Fail("Mupdf exit code: " + process.ExitCode);
+            }
+
+            if (!Failed && !Cancelled && Result.Pages.Count != Result.PageCount)
+            {
+                Fail("Page count mismatch. Expected=" + Result.PageCount + " Received=" + Result.Pages.Count);
             }
             
             AnalysisComplete.Invoke(Result, Cancelled, Failed, Errors.ToString());
@@ -102,7 +109,7 @@ namespace TIFPDFCounter
                 Debug.Print(e.Data);
                 
                 var matchPageCount = Regex.Match(e.Data, @"^PageCount=(\d+)$");
-                var matchPageSpec = Regex.Match(e.Data, @"^Page=(\d+) Size=([\d\.]+),([\d\.]+) Color=(\d+)$");
+                var matchPageSpec = Regex.Match(e.Data, @"^Page=(\d+) Size=([\d\.]+),([\d\.]+) Color=(-?\d+)$");
                 
                 if (matchPageCount.Success && matchPageCount.Groups.Count == 2)
                 {

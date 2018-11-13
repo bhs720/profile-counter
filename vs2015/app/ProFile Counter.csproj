@@ -164,7 +164,7 @@
     <Compile Include="MatchingFilesReportWindow.Designer.cs">
       <DependentUpon>MatchingFilesReportWindow.cs</DependentUpon>
     </Compile>
-    <Compile Include="PageCounter.cs" />
+    <Compile Include="PageSizeCounter.cs" />
     <Compile Include="PageSizeManager.cs">
       <SubType>Form</SubType>
     </Compile>

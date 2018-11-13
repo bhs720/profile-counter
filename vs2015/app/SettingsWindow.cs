@@ -1,20 +1,9 @@
-﻿/*
- * Created by SharpDevelop.
- * User: bsmith
- * Date: 12/24/2014
- * Time: 5:00 PM
- * 
- * To change this template use Tools | Options | Coding | Edit Standard Headers.
- */
-using System;
+﻿using System;
 using System.Drawing;
 using System.Windows.Forms;
 
 namespace TIFPDFCounter
 {
-	/// <summary>
-	/// Description of Settings.
-	/// </summary>
 	public partial class SettingsWindow : Form
 	{
 		public SettingsWindow()
@@ -58,9 +47,11 @@ namespace TIFPDFCounter
                 Settings.Instance.CheckImagePixels = chkImagePixels.Checked;
                 Settings.Instance.CheckForDuplicateFiles = chkDuplicateFiles.Checked;
                 Settings.Instance.PerformColorAnalysis = chkColorAnalysis.Checked;
+                Settings.Instance.CheckForProgramUpdates = chkUpdates.Checked;
                 Settings.Save();
             }
 		}
+
 		void BtnOKClick(object sender, EventArgs e)
 		{
 			DialogResult = DialogResult.OK;
@@ -98,9 +89,9 @@ namespace TIFPDFCounter
             txtColorSensitivity.Text = tbColorSensitivity.Value.ToString();
         }
 
-        private void btnSetDefault_Click(object sender, EventArgs e)
+        private void button1_Click(object sender, EventArgs e)
         {
             txtColorSensitivity.Text = "75";
         }
-	}
+    }
 }
