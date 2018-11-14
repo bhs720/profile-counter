@@ -7,6 +7,10 @@ using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security;
+using System.Net;
+using System.Net.Http;
+using Newtonsoft.Json;
+using System.Threading.Tasks;
 
 namespace TIFPDFCounter
 {
@@ -15,6 +19,7 @@ namespace TIFPDFCounter
         public MainForm()
         {
             InitializeComponent();
+            lblUpdate.Text = "";
             AcceptedFiles = new List<TPCFile>();
         }
         
@@ -202,7 +207,7 @@ namespace TIFPDFCounter
             Settings.Save();
         }
 
-        void MainFormLoad(object sender, System.EventArgs e)
+        async void MainFormLoad(object sender, EventArgs e)
         {
             Settings.Load();
             Size = Settings.Instance.WindowSize;
@@ -210,6 +215,68 @@ namespace TIFPDFCounter
             WindowState = Settings.Instance.WindowState;
             if (WindowState == FormWindowState.Minimized)
                 WindowState = FormWindowState.Normal;
+            
+            await CheckForProgramUpdates();
+        }
+
+        async Task CheckForProgramUpdates()
+        {
+            try
+            {
+                string json = "";
+                using (var webClient = new WebClient())
+                {
+                    webClient.CachePolicy = new System.Net.Cache.RequestCachePolicy(System.Net.Cache.RequestCacheLevel.NoCacheNoStore);
+                    ServicePointManager.SecurityProtocol = SecurityProtocolType.Ssl3 | SecurityProtocolType.Tls | SecurityProtocolType.Tls11 | SecurityProtocolType.Tls12;
+                    json = await webClient.DownloadStringTaskAsync(Settings.Instance.AppUpdateJsonUrl);
+                }
+                dynamic obj = JsonConvert.DeserializeObject<dynamic>(json);
+                string latestVersion = obj.version;
+                string downloadLink = obj.link;
+
+                if (CompareVersions(latestVersion, Application.ProductVersion))
+                {
+                    Debug.Print("Post update: " + (string)obj.link);
+                    lblUpdate.Text = "Update available";
+                    lblUpdate.Click += delegate
+                    {
+                        Process.Start(downloadLink);
+                    };
+                }
+                else
+                {
+                    Debug.Print("No update available");
+                }
+            }
+            catch (Exception ex)
+            {
+                // swallow the exception
+                Debug.Print("Update check failed: " + ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// return true if latestVersion is greater than currentVersion
+        /// </summary>
+        /// <param name="latestVersion"></param>
+        /// <param name="currentVersion"></param>
+        /// <returns></returns>
+        bool CompareVersions(string latestVersion, string currentVersion)
+        {
+            Debug.Print("LatestVersion=" + latestVersion + " CurrentVersion=" + currentVersion);
+            var cvSplit = currentVersion.Split('.');
+            var lvSplit = latestVersion.Split('.');
+            for (int i = 0; i < cvSplit.Length && i < lvSplit.Length; i++)
+            {
+                int cv = Convert.ToInt32(cvSplit[i]);
+                int lv = Convert.ToInt32(lvSplit[i]);
+                if (lv > cv)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         void BtnManageClick(object sender, EventArgs e)

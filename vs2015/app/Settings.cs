@@ -12,7 +12,9 @@ namespace TIFPDFCounter
     public static class Settings
     {
         readonly static string appData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ProFile Counter");
-        readonly static string settingsFile = Path.Combine(appData, "UserSettings.xml");
+        readonly static string version = Application.ProductVersion.ToString();
+        readonly static string settingsFilename = "UserSettings-" + version + ".xml";
+        readonly static string settingsFile = Path.Combine(appData, settingsFilename);
         
         public static UserSettings Instance { get; private set; }
 
@@ -56,6 +58,8 @@ namespace TIFPDFCounter
             get
             {
                 var def = new UserSettings();
+                def.AppWebsiteUrl = "https://bhs720.github.io/profile-counter";
+                def.AppUpdateJsonUrl = "https://bhs720.github.io/profile-counter/latest_version.json";
                 def.PageStore = DefaultPageStore;
                 def.WindowLocation = new Point(0, 0);
                 def.WindowSize = new Size(640, 480);
@@ -69,30 +73,36 @@ namespace TIFPDFCounter
             }
         }
 
+        /// <summary>
+        /// Hard-coded standard page sizes
+        /// </summary>
         public static List<PageSize> DefaultPageStore
         {
             get
             {
-                var store = new List<PageSize>();
-                store.Add(new PageSize("ANSI-A [ 8.5 × 11 ]", 8, 9, 10, 12));
-                store.Add(new PageSize("Legal [ 8.5 × 14 ]", 8, 9, 13, 15));
-                store.Add(new PageSize("ANSI-B [ 11 × 17 ]", 10.5m, 11.5m, 16.5m, 17.5m));
-                store.Add(new PageSize("ANSI-C [ 17 × 22 ]", 16, 18, 21, 23));
-                store.Add(new PageSize("ANSI-D [ 22 × 34 ]", 21, 23, 33, 35));
-                store.Add(new PageSize("ANSI-E [ 34 × 44 ]", 33, 35, 43, 45));
-                store.Add(new PageSize("ARCH-B [ 12 × 18 ]", 11.5m, 12.5m, 17.5m, 18.5m));
-                store.Add(new PageSize("ARCH-C [ 18 × 24 ]", 17, 19, 23, 25));
-                store.Add(new PageSize("ARCH-D [ 24 × 36 ]", 23, 25, 35, 37));
-                store.Add(new PageSize("ARCH-E1 [ 30 × 42 ]", 29, 31, 41, 43));
-                store.Add(new PageSize("ARCH-E [ 36 × 48 ]", 35, 37, 47, 49));
-                store.Add(new PageSize("Large Format", 13, 9999, 13, 9999));
-                store.Add(new PageSize("Small Format", 0, 9999, 0, 9999));
-                return store;
+                return new List<PageSize>
+                {
+                    new PageSize("ANSI-A [ 8.5 × 11 ]", 8, 9, 10, 12),
+                    new PageSize("Legal [ 8.5 × 14 ]", 8, 9, 13, 15),
+                    new PageSize("ANSI-B [ 11 × 17 ]", 10.5m, 11.5m, 16.5m, 17.5m),
+                    new PageSize("ANSI-C [ 17 × 22 ]", 16, 18, 21, 23),
+                    new PageSize("ANSI-D [ 22 × 34 ]", 21, 23, 33, 35),
+                    new PageSize("ANSI-E [ 34 × 44 ]", 33, 35, 43, 45),
+                    new PageSize("ARCH-B [ 12 × 18 ]", 11.5m, 12.5m, 17.5m, 18.5m),
+                    new PageSize("ARCH-C [ 18 × 24 ]", 17, 19, 23, 25),
+                    new PageSize("ARCH-D [ 24 × 36 ]", 23, 25, 35, 37),
+                    new PageSize("ARCH-E1 [ 30 × 42 ]", 29, 31, 41, 43),
+                    new PageSize("ARCH-E [ 36 × 48 ]", 35, 37, 47, 49),
+                    new PageSize("Large Format", 13, 99999, 13, 99999),
+                    new PageSize("Small Format", 0, 99999, 0, 99999)
+                };
             }
         }
 
         public class UserSettings
         {
+            public string AppWebsiteUrl { get; set; }
+            public string AppUpdateJsonUrl { get; set; }
             public List<PageSize> PageStore { get; set; }
             public Point WindowLocation { get; set; }
             public Size WindowSize { get; set; }
@@ -103,7 +113,7 @@ namespace TIFPDFCounter
             /// </summary>
             public decimal ColorThreshold { get; set; }
             /// <summary>
-            /// Do we want to check if the page is in color (true), or get the page size only
+            /// Do we want to check if the page is in color (true), or get the page size only (false)
             /// </summary>
             public bool PerformColorAnalysis { get; set; }
             /// <summary>
@@ -115,13 +125,9 @@ namespace TIFPDFCounter
             /// </summary>
             public bool CheckForDuplicateFiles { get; set; }
             /// <summary>
-            /// Should we check pixels exhaustively (true), or look at the image colorspace only
+            /// Should we check pixels exhaustively (true), or look at the image colorspace only (false)
             /// </summary>
             public bool CheckImagePixels { get; set; }
-            public void LoadDefaultPageSizes()
-            {
-                this.PageStore = DefaultPageStore;
-            }
         }
     }
 }

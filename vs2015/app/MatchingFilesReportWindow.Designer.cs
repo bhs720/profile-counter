@@ -34,17 +34,21 @@
             // 
             // treeView1
             // 
+            this.treeView1.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
+            | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
             this.treeView1.FullRowSelect = true;
             this.treeView1.HideSelection = false;
             this.treeView1.Location = new System.Drawing.Point(12, 12);
             this.treeView1.Name = "treeView1";
             this.treeView1.ShowLines = false;
-            this.treeView1.Size = new System.Drawing.Size(674, 274);
+            this.treeView1.Size = new System.Drawing.Size(518, 101);
             this.treeView1.TabIndex = 0;
             // 
             // btnOpenFolder
             // 
-            this.btnOpenFolder.Location = new System.Drawing.Point(12, 292);
+            this.btnOpenFolder.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
+            this.btnOpenFolder.Location = new System.Drawing.Point(12, 119);
             this.btnOpenFolder.Name = "btnOpenFolder";
             this.btnOpenFolder.Size = new System.Drawing.Size(75, 23);
             this.btnOpenFolder.TabIndex = 1;
@@ -56,7 +60,7 @@
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(698, 365);
+            this.ClientSize = new System.Drawing.Size(542, 154);
             this.Controls.Add(this.btnOpenFolder);
             this.Controls.Add(this.treeView1);
             this.MaximizeBox = false;

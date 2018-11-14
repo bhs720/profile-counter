@@ -59,6 +59,7 @@ namespace TIFPDFCounter
             this.lblTotalPages = new System.Windows.Forms.ToolStripStatusLabel();
             this.lblSelected = new System.Windows.Forms.ToolStripStatusLabel();
             this.btnSettings = new System.Windows.Forms.Button();
+            this.lblUpdate = new System.Windows.Forms.ToolStripStatusLabel();
             ((System.ComponentModel.ISupportInitialize)(this.dgvFilePages)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.dgvCounters)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
@@ -246,7 +247,8 @@ namespace TIFPDFCounter
             this.statusStrip1.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.lblTotalFiles,
             this.lblTotalPages,
-            this.lblSelected});
+            this.lblSelected,
+            this.lblUpdate});
             this.statusStrip1.Location = new System.Drawing.Point(1, 247);
             this.statusStrip1.Name = "statusStrip1";
             this.statusStrip1.Size = new System.Drawing.Size(572, 24);
@@ -284,6 +286,15 @@ namespace TIFPDFCounter
             this.btnSettings.Text = "Settings";
             this.btnSettings.UseVisualStyleBackColor = true;
             this.btnSettings.Click += new System.EventHandler(this.btnSettings_Click);
+            // 
+            // lblUpdate
+            // 
+            this.lblUpdate.IsLink = true;
+            this.lblUpdate.Name = "lblUpdate";
+            this.lblUpdate.Size = new System.Drawing.Size(299, 19);
+            this.lblUpdate.Spring = true;
+            this.lblUpdate.Text = "Update Link";
+            this.lblUpdate.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
             // 
             // MainForm
             // 
@@ -338,5 +349,6 @@ namespace TIFPDFCounter
         private System.Windows.Forms.ToolStripStatusLabel lblTotalPages;
         private System.Windows.Forms.ToolStripStatusLabel lblSelected;
         private System.Windows.Forms.Button btnSettings;
-	}
+        private System.Windows.Forms.ToolStripStatusLabel lblUpdate;
+    }
 }
