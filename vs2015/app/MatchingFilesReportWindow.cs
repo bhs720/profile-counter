@@ -46,10 +46,20 @@ namespace TIFPDFCounter
                 var file = node.Tag as TPCFile;
                 if (file != null)
                 {
-                    string path = System.IO.Path.GetDirectoryName(file.Filename);
-                    System.Diagnostics.Process.Start(path);
+                    System.Diagnostics.Process.Start("explorer.exe", "/select, \"" + file.Filename + "\"");
                 }
-                
+            }
+        }
+
+        private void treeView1_NodeMouseDoubleClick(object sender, TreeNodeMouseClickEventArgs e)
+        {
+            if (e.Node != null)
+            {
+                var file = e.Node.Tag as TPCFile;
+                if (file != null)
+                {
+                    System.Diagnostics.Process.Start(file.Filename);
+                }
             }
         }
     }

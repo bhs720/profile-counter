@@ -10,10 +10,12 @@ namespace TIFPDFCounter
 {
     public class FileAnalyzer
     {
-        Process process;
+        private Process process;
+        private DateTime? lastProgress;
+        private TimeSpan progressInterval = new TimeSpan(days: 0, hours: 0, minutes: 0, seconds: 0, milliseconds: 500);
 
-        public delegate void ProgressChangedEventHandler(int completed, int total);
-        public delegate void AnalysisCompleteEventHandler(TPCFile result, bool cancelled, bool failed, string errors);
+        public delegate void ProgressChangedEventHandler(FileAnalyzer instance, int completed, int total);
+        public delegate void AnalysisCompleteEventHandler(FileAnalyzer instance);
         public event ProgressChangedEventHandler ProgressChanged;
         public event AnalysisCompleteEventHandler AnalysisComplete;
 
@@ -49,6 +51,7 @@ namespace TIFPDFCounter
             process.Start();
             process.BeginErrorReadLine();
             process.BeginOutputReadLine();
+            process.PriorityClass = ProcessPriorityClass.Idle;
             Debug.Print("FileAnalyzer started");
         }
 
@@ -60,7 +63,7 @@ namespace TIFPDFCounter
             Kill();
         }
 
-        public void Fail(string message)
+        private void Fail(string message)
         {
             Debug.Print("Fail FileAnalyzer: " + message);
             Errors.AppendLine(message);
@@ -71,35 +74,41 @@ namespace TIFPDFCounter
 
         private void Kill()
         {
-            Debug.Print("Kill FileAnalyzer - already exited? {0}", process.HasExited);
-            if (!process.HasExited)
+            Debug.Print("Kill FileAnalyzer - already exited? {0}", process?.HasExited);
+            if (process != null && !process.HasExited)
             {
                 try { process.Kill(); }
                 catch { }
             }
         }
 
-        void process_ErrorDataReceived(object sender, DataReceivedEventArgs e)
+        private void process_ErrorDataReceived(object sender, DataReceivedEventArgs e)
         {
             if (!string.IsNullOrEmpty(e.Data))
                 Errors.AppendLine(e.Data);
         }
 
-        void process_Exited(object sender, EventArgs e)
+        private void process_Exited(object sender, EventArgs e)
         {
             // Wait to receive all of stdout
-            process.WaitForExit();
-            if (process.ExitCode != 0)
+            if (process != null)
             {
-                Fail("Mupdf exit code: " + process.ExitCode);
+                process.WaitForExit();
+                if (process.ExitCode != 0)
+                {
+                    Fail("Mupdf exit code: " + process.ExitCode);
+                }
+
+                if (!Failed && !Cancelled && Result.Pages.Count != Result.PageCount)
+                {
+                    Fail("Page count mismatch. Expected=" + Result.PageCount + " Received=" + Result.Pages.Count);
+                }
+
+                process.Dispose();
+                process = null;
             }
 
-            if (!Failed && !Cancelled && Result.Pages.Count != Result.PageCount)
-            {
-                Fail("Page count mismatch. Expected=" + Result.PageCount + " Received=" + Result.Pages.Count);
-            }
-            
-            AnalysisComplete.Invoke(Result, Cancelled, Failed, Errors.ToString());
+            AnalysisComplete.Invoke(this);
         }
 
         void process_OutputDataReceived(object sender, DataReceivedEventArgs e)
@@ -115,7 +124,7 @@ namespace TIFPDFCounter
                 {
                     int pageCount = Convert.ToInt32(matchPageCount.Groups[1].Value);
                     Result = new TPCFile(Filename, pageCount);
-                    ProgressChanged.Invoke(0, pageCount);
+                    ProgressChanged.Invoke(this, 0, pageCount);
                 }
                 else if (matchPageSpec.Success && matchPageSpec.Groups.Count == 5)
                 {
@@ -146,7 +155,11 @@ namespace TIFPDFCounter
                     }
 
                     Result.Pages.Add(new TPCFilePage(pageNumber, width, height, cm));
-                    ProgressChanged.Invoke(pageNumber, Result.PageCount);
+                    if (lastProgress == null || (DateTime.Now - lastProgress) > progressInterval)
+                    {
+                        lastProgress = DateTime.Now;
+                        ProgressChanged.Invoke(this, pageNumber, Result.PageCount);
+                    }
                 }
                 else
                 {

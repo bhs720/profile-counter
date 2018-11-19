@@ -54,7 +54,7 @@ namespace TIFPDFCounter
             // 
             this.txtName.Location = new System.Drawing.Point(79, 8);
             this.txtName.Name = "txtName";
-            this.txtName.Size = new System.Drawing.Size(146, 20);
+            this.txtName.Size = new System.Drawing.Size(146, 22);
             this.txtName.TabIndex = 1;
             // 
             // lblName
@@ -108,28 +108,28 @@ namespace TIFPDFCounter
             // 
             this.txtHeightMin.Location = new System.Drawing.Point(79, 85);
             this.txtHeightMin.Name = "txtHeightMin";
-            this.txtHeightMin.Size = new System.Drawing.Size(70, 20);
+            this.txtHeightMin.Size = new System.Drawing.Size(70, 22);
             this.txtHeightMin.TabIndex = 8;
             // 
             // txtWidthMin
             // 
             this.txtWidthMin.Location = new System.Drawing.Point(79, 59);
             this.txtWidthMin.Name = "txtWidthMin";
-            this.txtWidthMin.Size = new System.Drawing.Size(70, 20);
+            this.txtWidthMin.Size = new System.Drawing.Size(70, 22);
             this.txtWidthMin.TabIndex = 4;
             // 
             // txtWidthMax
             // 
             this.txtWidthMax.Location = new System.Drawing.Point(155, 59);
             this.txtWidthMax.Name = "txtWidthMax";
-            this.txtWidthMax.Size = new System.Drawing.Size(70, 20);
+            this.txtWidthMax.Size = new System.Drawing.Size(70, 22);
             this.txtWidthMax.TabIndex = 6;
             // 
             // txtHeightMax
             // 
             this.txtHeightMax.Location = new System.Drawing.Point(155, 85);
             this.txtHeightMax.Name = "txtHeightMax";
-            this.txtHeightMax.Size = new System.Drawing.Size(70, 20);
+            this.txtHeightMax.Size = new System.Drawing.Size(70, 22);
             this.txtHeightMax.TabIndex = 9;
             // 
             // label1
@@ -138,7 +138,7 @@ namespace TIFPDFCounter
             this.label1.Location = new System.Drawing.Point(79, 43);
             this.label1.Name = "label1";
             this.label1.Padding = new System.Windows.Forms.Padding(3, 0, 0, 0);
-            this.label1.Size = new System.Drawing.Size(30, 13);
+            this.label1.Size = new System.Drawing.Size(33, 13);
             this.label1.TabIndex = 3;
             this.label1.Text = "Min.";
             // 
@@ -148,7 +148,7 @@ namespace TIFPDFCounter
             this.label3.Location = new System.Drawing.Point(152, 43);
             this.label3.Name = "label3";
             this.label3.Padding = new System.Windows.Forms.Padding(3, 0, 0, 0);
-            this.label3.Size = new System.Drawing.Size(33, 13);
+            this.label3.Size = new System.Drawing.Size(34, 13);
             this.label3.TabIndex = 5;
             this.label3.Text = "Max.";
             // 
@@ -172,6 +172,7 @@ namespace TIFPDFCounter
             this.Controls.Add(this.lblWidth);
             this.Controls.Add(this.lblName);
             this.Controls.Add(this.txtName);
+            this.Font = new System.Drawing.Font("Segoe UI", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedToolWindow;
             this.MaximizeBox = false;
             this.MinimizeBox = false;

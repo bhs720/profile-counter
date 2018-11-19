@@ -115,10 +115,12 @@ namespace TIFPDFCounter
                 return;                
 
             List<TPCFile> processedFiles;
-            using (var progressWindow = new ProgressWindow(dropFiles))
+            using (var processWindow = new ProcessWindow(dropFiles))
             {
-                progressWindow.ShowDialog(this);
-                processedFiles = progressWindow.TPCFiles;
+                AllowDrop = false;
+                processWindow.ShowDialog(this);
+                processedFiles = processWindow.Results;
+                AllowDrop = true;
             }
 
             // add this batch to LoadedFiles
@@ -216,7 +218,8 @@ namespace TIFPDFCounter
             if (WindowState == FormWindowState.Minimized)
                 WindowState = FormWindowState.Normal;
             
-            await CheckForProgramUpdates();
+            if (Settings.Instance.CheckForProgramUpdates)
+                await CheckForProgramUpdates();
         }
 
         async Task CheckForProgramUpdates()
@@ -238,6 +241,7 @@ namespace TIFPDFCounter
                 {
                     Debug.Print("Post update: " + (string)obj.link);
                     lblUpdate.Text = "Update available";
+                    lblUpdate.IsLink = true;
                     lblUpdate.Click += delegate
                     {
                         Process.Start(downloadLink);
@@ -311,6 +315,7 @@ namespace TIFPDFCounter
                 .ToList();
 
             dgvFilePages.ClearSelection();
+
             dgvFilePages.Rows
                 .Cast<DataGridViewRow>()
                 .Where(dgvr => tagsToSelect.Contains(dgvr.Tag as TPCFilePage)).ToList()

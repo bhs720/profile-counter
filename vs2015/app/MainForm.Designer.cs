@@ -58,8 +58,8 @@ namespace TIFPDFCounter
             this.lblTotalFiles = new System.Windows.Forms.ToolStripStatusLabel();
             this.lblTotalPages = new System.Windows.Forms.ToolStripStatusLabel();
             this.lblSelected = new System.Windows.Forms.ToolStripStatusLabel();
-            this.btnSettings = new System.Windows.Forms.Button();
             this.lblUpdate = new System.Windows.Forms.ToolStripStatusLabel();
+            this.btnSettings = new System.Windows.Forms.Button();
             ((System.ComponentModel.ISupportInitialize)(this.dgvFilePages)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.dgvCounters)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
@@ -83,13 +83,19 @@ namespace TIFPDFCounter
             this.colPage,
             this.colColor,
             this.colSize});
+            dataGridViewCellStyle1.Alignment = System.Windows.Forms.DataGridViewContentAlignment.MiddleLeft;
+            dataGridViewCellStyle1.BackColor = System.Drawing.SystemColors.Window;
+            dataGridViewCellStyle1.Font = new System.Drawing.Font("Segoe UI", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            dataGridViewCellStyle1.ForeColor = System.Drawing.SystemColors.ControlText;
+            dataGridViewCellStyle1.SelectionBackColor = System.Drawing.SystemColors.Highlight;
+            dataGridViewCellStyle1.SelectionForeColor = System.Drawing.SystemColors.HighlightText;
+            dataGridViewCellStyle1.WrapMode = System.Windows.Forms.DataGridViewTriState.False;
+            this.dgvFilePages.DefaultCellStyle = dataGridViewCellStyle1;
             this.dgvFilePages.Dock = System.Windows.Forms.DockStyle.Fill;
             this.dgvFilePages.Location = new System.Drawing.Point(0, 0);
             this.dgvFilePages.Name = "dgvFilePages";
             this.dgvFilePages.ReadOnly = true;
             this.dgvFilePages.RowHeadersVisible = false;
-            dataGridViewCellStyle1.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.dgvFilePages.RowsDefaultCellStyle = dataGridViewCellStyle1;
             this.dgvFilePages.RowTemplate.Height = 16;
             this.dgvFilePages.SelectionMode = System.Windows.Forms.DataGridViewSelectionMode.FullRowSelect;
             this.dgvFilePages.ShowCellErrors = false;
@@ -276,6 +282,14 @@ namespace TIFPDFCounter
             this.lblSelected.Size = new System.Drawing.Size(67, 19);
             this.lblSelected.Text = "Selected: 0";
             // 
+            // lblUpdate
+            // 
+            this.lblUpdate.Name = "lblUpdate";
+            this.lblUpdate.Size = new System.Drawing.Size(330, 19);
+            this.lblUpdate.Spring = true;
+            this.lblUpdate.Text = "Update Link";
+            this.lblUpdate.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
+            // 
             // btnSettings
             // 
             this.btnSettings.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
@@ -286,15 +300,6 @@ namespace TIFPDFCounter
             this.btnSettings.Text = "Settings";
             this.btnSettings.UseVisualStyleBackColor = true;
             this.btnSettings.Click += new System.EventHandler(this.btnSettings_Click);
-            // 
-            // lblUpdate
-            // 
-            this.lblUpdate.IsLink = true;
-            this.lblUpdate.Name = "lblUpdate";
-            this.lblUpdate.Size = new System.Drawing.Size(299, 19);
-            this.lblUpdate.Spring = true;
-            this.lblUpdate.Text = "Update Link";
-            this.lblUpdate.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
             // 
             // MainForm
             // 
@@ -307,6 +312,7 @@ namespace TIFPDFCounter
             this.Controls.Add(this.btnManage);
             this.Controls.Add(this.splitContainer1);
             this.Controls.Add(this.statusStrip1);
+            this.Font = new System.Drawing.Font("Segoe UI", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.KeyPreview = true;
             this.MinimumSize = new System.Drawing.Size(590, 240);

@@ -44,13 +44,14 @@
             this.treeView1.ShowLines = false;
             this.treeView1.Size = new System.Drawing.Size(518, 101);
             this.treeView1.TabIndex = 0;
+            this.treeView1.NodeMouseDoubleClick += new System.Windows.Forms.TreeNodeMouseClickEventHandler(this.treeView1_NodeMouseDoubleClick);
             // 
             // btnOpenFolder
             // 
             this.btnOpenFolder.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
             this.btnOpenFolder.Location = new System.Drawing.Point(12, 119);
             this.btnOpenFolder.Name = "btnOpenFolder";
-            this.btnOpenFolder.Size = new System.Drawing.Size(75, 23);
+            this.btnOpenFolder.Size = new System.Drawing.Size(111, 23);
             this.btnOpenFolder.TabIndex = 1;
             this.btnOpenFolder.Text = "Open Folder";
             this.btnOpenFolder.UseVisualStyleBackColor = true;
@@ -63,6 +64,7 @@
             this.ClientSize = new System.Drawing.Size(542, 154);
             this.Controls.Add(this.btnOpenFolder);
             this.Controls.Add(this.treeView1);
+            this.Font = new System.Drawing.Font("Segoe UI", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.MaximizeBox = false;
             this.MinimizeBox = false;
             this.Name = "MatchingFilesReportWindow";
