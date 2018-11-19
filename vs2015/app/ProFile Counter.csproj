@@ -152,12 +152,6 @@
     <Compile Include="Utility.cs" />
     <Compile Include="File.cs" />
     <Compile Include="FileAnalyzer.cs" />
-    <Compile Include="FileAnalyzerErrors.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="FileAnalyzerErrors.Designer.cs">
-      <DependentUpon>FileAnalyzerErrors.cs</DependentUpon>
-    </Compile>
     <Compile Include="FilePage.cs" />
     <Compile Include="MainForm.cs">
       <SubType>Form</SubType>
@@ -210,9 +204,6 @@
     <Content Include="tpcIcon.ico" />
   </ItemGroup>
   <ItemGroup>
-    <EmbeddedResource Include="FileAnalyzerErrors.resx">
-      <DependentUpon>FileAnalyzerErrors.cs</DependentUpon>
-    </EmbeddedResource>
     <EmbeddedResource Include="MainForm.resx">
       <DependentUpon>MainForm.cs</DependentUpon>
     </EmbeddedResource>
