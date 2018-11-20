@@ -60,7 +60,12 @@ namespace TIFPDFCounter
 
 		void LinkLabel1LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
 		{
-			System.Diagnostics.Process.Start(lblAppWebSite.Text);
+            using (var proc = new System.Diagnostics.Process())
+            {
+                proc.StartInfo.FileName = lblAppWebSite.Text;
+                proc.StartInfo.ErrorDialog = true;
+                proc.Start();
+            }
 		}
 
         private void cbColorAnalysis_CheckedChanged(object sender, EventArgs e)

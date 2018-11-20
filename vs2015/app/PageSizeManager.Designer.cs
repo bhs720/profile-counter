@@ -214,7 +214,7 @@ namespace TIFPDFCounter
             this.Name = "PageSizeManager";
             this.Padding = new System.Windows.Forms.Padding(1);
             this.ShowInTaskbar = false;
-            this.SizeGripStyle = System.Windows.Forms.SizeGripStyle.Show;
+            this.SizeGripStyle = System.Windows.Forms.SizeGripStyle.Hide;
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterParent;
             this.Text = "Manage Page Sizes";
             ((System.ComponentModel.ISupportInitialize)(this.dgvManager)).EndInit();

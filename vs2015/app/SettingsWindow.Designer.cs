@@ -68,7 +68,7 @@ namespace TIFPDFCounter
             // btnOK
             // 
             this.btnOK.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
-            this.btnOK.Location = new System.Drawing.Point(173, 311);
+            this.btnOK.Location = new System.Drawing.Point(143, 311);
             this.btnOK.Name = "btnOK";
             this.btnOK.Size = new System.Drawing.Size(75, 23);
             this.btnOK.TabIndex = 4;
@@ -80,7 +80,7 @@ namespace TIFPDFCounter
             // 
             this.btnCancel.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
             this.btnCancel.DialogResult = System.Windows.Forms.DialogResult.Cancel;
-            this.btnCancel.Location = new System.Drawing.Point(254, 311);
+            this.btnCancel.Location = new System.Drawing.Point(224, 311);
             this.btnCancel.Name = "btnCancel";
             this.btnCancel.Size = new System.Drawing.Size(75, 23);
             this.btnCancel.TabIndex = 5;
@@ -108,15 +108,15 @@ namespace TIFPDFCounter
             this.groupBox1.Location = new System.Drawing.Point(12, 79);
             this.groupBox1.Name = "groupBox1";
             this.groupBox1.Padding = new System.Windows.Forms.Padding(12);
-            this.groupBox1.Size = new System.Drawing.Size(317, 145);
+            this.groupBox1.Size = new System.Drawing.Size(284, 145);
             this.groupBox1.TabIndex = 1;
             this.groupBox1.TabStop = false;
             // 
             // button1
             // 
-            this.button1.Location = new System.Drawing.Point(138, 54);
+            this.button1.Location = new System.Drawing.Point(146, 56);
             this.button1.Name = "button1";
-            this.button1.Size = new System.Drawing.Size(75, 23);
+            this.button1.Size = new System.Drawing.Size(54, 22);
             this.button1.TabIndex = 3;
             this.button1.Text = "Default";
             this.button1.UseVisualStyleBackColor = true;
@@ -134,7 +134,7 @@ namespace TIFPDFCounter
             // 
             // txtColorSensitivity
             // 
-            this.txtColorSensitivity.Location = new System.Drawing.Point(105, 56);
+            this.txtColorSensitivity.Location = new System.Drawing.Point(113, 56);
             this.txtColorSensitivity.Name = "txtColorSensitivity";
             this.txtColorSensitivity.Size = new System.Drawing.Size(27, 22);
             this.txtColorSensitivity.TabIndex = 2;
@@ -172,7 +172,7 @@ namespace TIFPDFCounter
             this.tbColorSensitivity.Location = new System.Drawing.Point(15, 95);
             this.tbColorSensitivity.Maximum = 100;
             this.tbColorSensitivity.Name = "tbColorSensitivity";
-            this.tbColorSensitivity.Size = new System.Drawing.Size(287, 45);
+            this.tbColorSensitivity.Size = new System.Drawing.Size(249, 45);
             this.tbColorSensitivity.TabIndex = 6;
             this.tbColorSensitivity.TickFrequency = 10;
             this.tbColorSensitivity.Value = 75;
@@ -193,7 +193,7 @@ namespace TIFPDFCounter
             // 
             this.lblAppName.Location = new System.Drawing.Point(67, 16);
             this.lblAppName.Name = "lblAppName";
-            this.lblAppName.Size = new System.Drawing.Size(262, 15);
+            this.lblAppName.Size = new System.Drawing.Size(232, 15);
             this.lblAppName.TabIndex = 9;
             this.lblAppName.Text = "App Name";
             this.lblAppName.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
@@ -202,7 +202,7 @@ namespace TIFPDFCounter
             // 
             this.lblAppVersion.Location = new System.Drawing.Point(67, 30);
             this.lblAppVersion.Name = "lblAppVersion";
-            this.lblAppVersion.Size = new System.Drawing.Size(262, 15);
+            this.lblAppVersion.Size = new System.Drawing.Size(232, 15);
             this.lblAppVersion.TabIndex = 9;
             this.lblAppVersion.Text = "App Version";
             this.lblAppVersion.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
@@ -211,7 +211,7 @@ namespace TIFPDFCounter
             // 
             this.lblAppWebSite.Location = new System.Drawing.Point(67, 46);
             this.lblAppWebSite.Name = "lblAppWebSite";
-            this.lblAppWebSite.Size = new System.Drawing.Size(262, 15);
+            this.lblAppWebSite.Size = new System.Drawing.Size(232, 15);
             this.lblAppWebSite.TabIndex = 9;
             this.lblAppWebSite.TabStop = true;
             this.lblAppWebSite.Text = "App Web Site";
@@ -243,7 +243,7 @@ namespace TIFPDFCounter
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.CancelButton = this.btnCancel;
-            this.ClientSize = new System.Drawing.Size(341, 346);
+            this.ClientSize = new System.Drawing.Size(311, 346);
             this.Controls.Add(this.chkColorAnalysis);
             this.Controls.Add(this.chkUpdates);
             this.Controls.Add(this.chkDuplicateFiles);
@@ -256,7 +256,6 @@ namespace TIFPDFCounter
             this.Controls.Add(this.btnOK);
             this.Font = new System.Drawing.Font("Segoe UI", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedDialog;
-            this.HelpButton = true;
             this.MaximizeBox = false;
             this.MinimizeBox = false;
             this.Name = "SettingsWindow";

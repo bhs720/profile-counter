@@ -46,7 +46,13 @@ namespace TIFPDFCounter
                 var file = node.Tag as TPCFile;
                 if (file != null)
                 {
-                    System.Diagnostics.Process.Start("explorer.exe", "/select, \"" + file.Filename + "\"");
+                    using (var proc = new System.Diagnostics.Process())
+                    {
+                        proc.StartInfo.FileName = "explorer.exe";
+                        proc.StartInfo.Arguments = "/select,\"" + file.Filename + "\"";
+                        proc.StartInfo.ErrorDialog = true;
+                        proc.Start();
+                    }
                 }
             }
         }
@@ -58,7 +64,12 @@ namespace TIFPDFCounter
                 var file = e.Node.Tag as TPCFile;
                 if (file != null)
                 {
-                    System.Diagnostics.Process.Start(file.Filename);
+                    using (var proc = new System.Diagnostics.Process())
+                    {
+                        proc.StartInfo.FileName = file.Filename;
+                        proc.StartInfo.ErrorDialog = true;
+                        proc.Start();
+                    }
                 }
             }
         }

@@ -194,21 +194,22 @@ namespace TIFPDFCounter
                 string fileName = grid.Rows[e.RowIndex].Tag as string;
                 if (e.ColumnIndex == grid.Columns["Folder"].Index)
                 {
-                    try
+                    using (var proc = new System.Diagnostics.Process())
                     {
-                        System.Diagnostics.Process.Start("explorer.exe", "/select,\"" + fileName + "\"");
+                        proc.StartInfo.FileName = "explorer.exe";
+                        proc.StartInfo.Arguments = "/select,\"" + fileName + "\"";
+                        proc.StartInfo.ErrorDialog = true;
+                        proc.Start();
                     }
-                    catch { /* swallow */ }
-                    
                 }
                 else if (e.ColumnIndex == grid.Columns["Filename"].Index)
                 {
-                    try
+                    using (var proc = new System.Diagnostics.Process())
                     {
-                        System.Diagnostics.Process.Start(fileName);
+                        proc.StartInfo.FileName = fileName;
+                        proc.StartInfo.ErrorDialog = true;
+                        proc.Start();
                     }
-                    catch { /* swallow */ }
-                    
                 }
             }
         }

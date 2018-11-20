@@ -242,7 +242,12 @@ namespace TIFPDFCounter
                     lblUpdate.IsLink = true;
                     lblUpdate.Click += delegate
                     {
-                        Process.Start(downloadLink);
+                        using (var proc = new Process())
+                        {
+                            proc.StartInfo.FileName = downloadLink;
+                            proc.StartInfo.ErrorDialog = true;
+                            proc.Start();
+                        }
                     };
                 }
                 else

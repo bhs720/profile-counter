@@ -39,6 +39,10 @@ namespace TIFPDFCounter
             this.components = new System.ComponentModel.Container();
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainForm));
             this.dgvFilePages = new System.Windows.Forms.DataGridView();
+            this.dgvPagesFilename = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.dgvPagesPageNumber = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.dgvPagesPageColor = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.dgvPagesPageSize = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.dgvCounters = new System.Windows.Forms.DataGridView();
             this.colPageSize = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.colColorCount = new System.Windows.Forms.DataGridViewTextBoxColumn();
@@ -55,10 +59,7 @@ namespace TIFPDFCounter
             this.lblSelected = new System.Windows.Forms.ToolStripStatusLabel();
             this.lblUpdate = new System.Windows.Forms.ToolStripStatusLabel();
             this.btnSettings = new System.Windows.Forms.Button();
-            this.dgvPagesFilename = new System.Windows.Forms.DataGridViewTextBoxColumn();
-            this.dgvPagesPageNumber = new System.Windows.Forms.DataGridViewTextBoxColumn();
-            this.dgvPagesPageColor = new System.Windows.Forms.DataGridViewTextBoxColumn();
-            this.dgvPagesPageSize = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.toolStripStatusLabel1 = new System.Windows.Forms.ToolStripStatusLabel();
             ((System.ComponentModel.ISupportInitialize)(this.dgvFilePages)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.dgvCounters)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
@@ -95,6 +96,37 @@ namespace TIFPDFCounter
             this.dgvFilePages.Size = new System.Drawing.Size(336, 205);
             this.dgvFilePages.TabIndex = 0;
             this.dgvFilePages.SelectionChanged += new System.EventHandler(this.dgvFilePages_SelectionChanged);
+            // 
+            // dgvPagesFilename
+            // 
+            this.dgvPagesFilename.HeaderText = "Filename";
+            this.dgvPagesFilename.Name = "dgvPagesFilename";
+            this.dgvPagesFilename.ReadOnly = true;
+            this.dgvPagesFilename.SortMode = System.Windows.Forms.DataGridViewColumnSortMode.NotSortable;
+            // 
+            // dgvPagesPageNumber
+            // 
+            this.dgvPagesPageNumber.FillWeight = 25F;
+            this.dgvPagesPageNumber.HeaderText = "Page";
+            this.dgvPagesPageNumber.Name = "dgvPagesPageNumber";
+            this.dgvPagesPageNumber.ReadOnly = true;
+            this.dgvPagesPageNumber.SortMode = System.Windows.Forms.DataGridViewColumnSortMode.NotSortable;
+            // 
+            // dgvPagesPageColor
+            // 
+            this.dgvPagesPageColor.FillWeight = 25F;
+            this.dgvPagesPageColor.HeaderText = "Color";
+            this.dgvPagesPageColor.Name = "dgvPagesPageColor";
+            this.dgvPagesPageColor.ReadOnly = true;
+            this.dgvPagesPageColor.SortMode = System.Windows.Forms.DataGridViewColumnSortMode.NotSortable;
+            // 
+            // dgvPagesPageSize
+            // 
+            this.dgvPagesPageSize.FillWeight = 50F;
+            this.dgvPagesPageSize.HeaderText = "Size";
+            this.dgvPagesPageSize.Name = "dgvPagesPageSize";
+            this.dgvPagesPageSize.ReadOnly = true;
+            this.dgvPagesPageSize.SortMode = System.Windows.Forms.DataGridViewColumnSortMode.NotSortable;
             // 
             // dgvCounters
             // 
@@ -214,10 +246,12 @@ namespace TIFPDFCounter
             this.lblTotalFiles,
             this.lblTotalPages,
             this.lblSelected,
+            this.toolStripStatusLabel1,
             this.lblUpdate});
             this.statusStrip1.Location = new System.Drawing.Point(1, 247);
             this.statusStrip1.Name = "statusStrip1";
             this.statusStrip1.Size = new System.Drawing.Size(572, 24);
+            this.statusStrip1.SizingGrip = false;
             this.statusStrip1.TabIndex = 21;
             this.statusStrip1.Text = "statusStrip1";
             // 
@@ -245,8 +279,7 @@ namespace TIFPDFCounter
             // lblUpdate
             // 
             this.lblUpdate.Name = "lblUpdate";
-            this.lblUpdate.Size = new System.Drawing.Size(330, 19);
-            this.lblUpdate.Spring = true;
+            this.lblUpdate.Size = new System.Drawing.Size(70, 19);
             this.lblUpdate.Text = "Update Link";
             this.lblUpdate.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
             // 
@@ -261,36 +294,11 @@ namespace TIFPDFCounter
             this.btnSettings.UseVisualStyleBackColor = true;
             this.btnSettings.Click += new System.EventHandler(this.btnSettings_Click);
             // 
-            // dgvPagesFilename
+            // toolStripStatusLabel1
             // 
-            this.dgvPagesFilename.HeaderText = "Filename";
-            this.dgvPagesFilename.Name = "dgvPagesFilename";
-            this.dgvPagesFilename.ReadOnly = true;
-            this.dgvPagesFilename.SortMode = System.Windows.Forms.DataGridViewColumnSortMode.NotSortable;
-            // 
-            // dgvPagesPageNumber
-            // 
-            this.dgvPagesPageNumber.FillWeight = 25F;
-            this.dgvPagesPageNumber.HeaderText = "Page";
-            this.dgvPagesPageNumber.Name = "dgvPagesPageNumber";
-            this.dgvPagesPageNumber.ReadOnly = true;
-            this.dgvPagesPageNumber.SortMode = System.Windows.Forms.DataGridViewColumnSortMode.NotSortable;
-            // 
-            // dgvPagesPageColor
-            // 
-            this.dgvPagesPageColor.FillWeight = 25F;
-            this.dgvPagesPageColor.HeaderText = "Color";
-            this.dgvPagesPageColor.Name = "dgvPagesPageColor";
-            this.dgvPagesPageColor.ReadOnly = true;
-            this.dgvPagesPageColor.SortMode = System.Windows.Forms.DataGridViewColumnSortMode.NotSortable;
-            // 
-            // dgvPagesPageSize
-            // 
-            this.dgvPagesPageSize.FillWeight = 50F;
-            this.dgvPagesPageSize.HeaderText = "Size";
-            this.dgvPagesPageSize.Name = "dgvPagesPageSize";
-            this.dgvPagesPageSize.ReadOnly = true;
-            this.dgvPagesPageSize.SortMode = System.Windows.Forms.DataGridViewColumnSortMode.NotSortable;
+            this.toolStripStatusLabel1.Name = "toolStripStatusLabel1";
+            this.toolStripStatusLabel1.Size = new System.Drawing.Size(229, 19);
+            this.toolStripStatusLabel1.Spring = true;
             // 
             // MainForm
             // 
@@ -309,6 +317,7 @@ namespace TIFPDFCounter
             this.MinimumSize = new System.Drawing.Size(590, 240);
             this.Name = "MainForm";
             this.Padding = new System.Windows.Forms.Padding(1);
+            this.SizeGripStyle = System.Windows.Forms.SizeGripStyle.Hide;
             this.StartPosition = System.Windows.Forms.FormStartPosition.Manual;
             this.Text = "ProFile Counter";
             this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.MainFormFormClosing);
@@ -347,5 +356,6 @@ namespace TIFPDFCounter
         private System.Windows.Forms.DataGridViewTextBoxColumn dgvPagesPageNumber;
         private System.Windows.Forms.DataGridViewTextBoxColumn dgvPagesPageColor;
         private System.Windows.Forms.DataGridViewTextBoxColumn dgvPagesPageSize;
+        private System.Windows.Forms.ToolStripStatusLabel toolStripStatusLabel1;
     }
 }
