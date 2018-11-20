@@ -4,11 +4,11 @@ using System.Windows.Forms;
 
 namespace TIFPDFCounter
 {
-	public partial class SettingsWindow : Form
-	{
-		public SettingsWindow()
-		{
-			InitializeComponent();
+    public partial class SettingsWindow : Form
+    {
+        public SettingsWindow()
+        {
+            InitializeComponent();
         }
 
         private void SettingsWindow_Shown(object sender, EventArgs e)
@@ -16,7 +16,7 @@ namespace TIFPDFCounter
             lblAppName.Text = Application.ProductName;
             lblAppVersion.Text = "Version " + Application.ProductVersion;
             lblAppWebSite.Text = "https://bhs720.github.io/profile-counter";
-            
+
             txtColorSensitivity.Text = Math.Round((100 - Settings.Instance.ColorThreshold * 100)).ToString();
             chkColorAnalysis.Checked = Settings.Instance.PerformColorAnalysis;
             groupBox1.Enabled = chkColorAnalysis.Checked;
@@ -25,8 +25,8 @@ namespace TIFPDFCounter
             chkUpdates.Checked = Settings.Instance.CheckForProgramUpdates;
         }
 
-		void SettingsFormClosing(object sender, FormClosingEventArgs e)
-		{
+        void SettingsFormClosing(object sender, FormClosingEventArgs e)
+        {
             if (DialogResult == DialogResult.OK)
             {
                 if (chkColorAnalysis.Checked)
@@ -50,23 +50,23 @@ namespace TIFPDFCounter
                 Settings.Instance.CheckForProgramUpdates = chkUpdates.Checked;
                 Settings.Save();
             }
-		}
+        }
 
-		void BtnOKClick(object sender, EventArgs e)
-		{
-			DialogResult = DialogResult.OK;
-			Close();
-		}
+        void BtnOKClick(object sender, EventArgs e)
+        {
+            DialogResult = DialogResult.OK;
+            Close();
+        }
 
-		void LinkLabel1LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
-		{
+        void LinkLabel1LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
+        {
             using (var proc = new System.Diagnostics.Process())
             {
                 proc.StartInfo.FileName = lblAppWebSite.Text;
                 proc.StartInfo.ErrorDialog = true;
                 proc.Start();
             }
-		}
+        }
 
         private void cbColorAnalysis_CheckedChanged(object sender, EventArgs e)
         {
