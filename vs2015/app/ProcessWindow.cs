@@ -48,6 +48,7 @@ namespace TIFPDFCounter
                 string filename = processQueue.Dequeue();
                 var analyzer = new FileAnalyzer(filename, Settings.Instance.PerformColorAnalysis, Settings.Instance.ColorThreshold, Settings.Instance.CheckImagePixels);
                 GetRow(filename).Cells["Status"].Value = "Processing";
+                
                 runningProcesses.Add(analyzer);
                 analyzer.ProgressChanged += Analyzer_ProgressChanged;
                 analyzer.AnalysisComplete += Analyzer_AnalysisComplete;
@@ -68,7 +69,7 @@ namespace TIFPDFCounter
                 runningProcesses.Remove(instance);
                 instance.ProgressChanged -= Analyzer_ProgressChanged;
                 instance.AnalysisComplete -= Analyzer_AnalysisComplete;
-
+                
                 if (instance.Cancelled)
                 {
                     GetRow(instance.Filename).Cells["Status"].Value = "Cancelled";
@@ -90,6 +91,8 @@ namespace TIFPDFCounter
                     grid.Rows.Remove(GetRow(instance.Filename));
                 }
 
+                ScrollToFirstProcessingRow();
+
                 if (processQueue.Count == 0 && runningProcesses.Count == 0)
                 {
                     FinishBatch();
@@ -99,6 +102,22 @@ namespace TIFPDFCounter
                     NextFile();
                 }
             });
+        }
+
+        private void ScrollToFirstProcessingRow()
+        {
+            if (grid.Rows.Count > 0)
+            {
+                var dgvr = grid.Rows.Cast<DataGridViewRow>().DefaultIfEmpty(null).FirstOrDefault(r =>
+                {
+                    string cellValue = (string)r.Cells["Status"].Value;
+                    return cellValue == "Processing" || cellValue == "Queued";
+                });
+                if (dgvr != null)
+                {
+                    grid.FirstDisplayedScrollingRowIndex = dgvr.Index;
+                }
+            }
         }
 
         private void FinishBatch()

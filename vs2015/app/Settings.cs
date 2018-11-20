@@ -12,8 +12,7 @@ namespace TIFPDFCounter
     public static class Settings
     {
         readonly static string appData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ProFile Counter");
-        readonly static string version = Application.ProductVersion.ToString();
-        readonly static string settingsFilename = "UserSettings-" + version + ".xml";
+        readonly static string settingsFilename = "UserSettings.xml";
         readonly static string settingsFile = Path.Combine(appData, settingsFilename);
         
         public static UserSettings Instance { get; private set; }

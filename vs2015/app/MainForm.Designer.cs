@@ -37,13 +37,8 @@ namespace TIFPDFCounter
 		private void InitializeComponent()
 		{
             this.components = new System.ComponentModel.Container();
-            System.Windows.Forms.DataGridViewCellStyle dataGridViewCellStyle1 = new System.Windows.Forms.DataGridViewCellStyle();
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainForm));
             this.dgvFilePages = new System.Windows.Forms.DataGridView();
-            this.colFile = new System.Windows.Forms.DataGridViewTextBoxColumn();
-            this.colPage = new System.Windows.Forms.DataGridViewTextBoxColumn();
-            this.colColor = new System.Windows.Forms.DataGridViewTextBoxColumn();
-            this.colSize = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.dgvCounters = new System.Windows.Forms.DataGridView();
             this.colPageSize = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.colColorCount = new System.Windows.Forms.DataGridViewTextBoxColumn();
@@ -60,6 +55,10 @@ namespace TIFPDFCounter
             this.lblSelected = new System.Windows.Forms.ToolStripStatusLabel();
             this.lblUpdate = new System.Windows.Forms.ToolStripStatusLabel();
             this.btnSettings = new System.Windows.Forms.Button();
+            this.dgvPagesFilename = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.dgvPagesPageNumber = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.dgvPagesPageColor = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.dgvPagesPageSize = new System.Windows.Forms.DataGridViewTextBoxColumn();
             ((System.ComponentModel.ISupportInitialize)(this.dgvFilePages)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.dgvCounters)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
@@ -79,18 +78,10 @@ namespace TIFPDFCounter
             this.dgvFilePages.CellBorderStyle = System.Windows.Forms.DataGridViewCellBorderStyle.None;
             this.dgvFilePages.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             this.dgvFilePages.Columns.AddRange(new System.Windows.Forms.DataGridViewColumn[] {
-            this.colFile,
-            this.colPage,
-            this.colColor,
-            this.colSize});
-            dataGridViewCellStyle1.Alignment = System.Windows.Forms.DataGridViewContentAlignment.MiddleLeft;
-            dataGridViewCellStyle1.BackColor = System.Drawing.SystemColors.Window;
-            dataGridViewCellStyle1.Font = new System.Drawing.Font("Segoe UI", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            dataGridViewCellStyle1.ForeColor = System.Drawing.SystemColors.ControlText;
-            dataGridViewCellStyle1.SelectionBackColor = System.Drawing.SystemColors.Highlight;
-            dataGridViewCellStyle1.SelectionForeColor = System.Drawing.SystemColors.HighlightText;
-            dataGridViewCellStyle1.WrapMode = System.Windows.Forms.DataGridViewTriState.False;
-            this.dgvFilePages.DefaultCellStyle = dataGridViewCellStyle1;
+            this.dgvPagesFilename,
+            this.dgvPagesPageNumber,
+            this.dgvPagesPageColor,
+            this.dgvPagesPageSize});
             this.dgvFilePages.Dock = System.Windows.Forms.DockStyle.Fill;
             this.dgvFilePages.Location = new System.Drawing.Point(0, 0);
             this.dgvFilePages.Name = "dgvFilePages";
@@ -104,37 +95,6 @@ namespace TIFPDFCounter
             this.dgvFilePages.Size = new System.Drawing.Size(336, 205);
             this.dgvFilePages.TabIndex = 0;
             this.dgvFilePages.SelectionChanged += new System.EventHandler(this.dgvFilePages_SelectionChanged);
-            // 
-            // colFile
-            // 
-            this.colFile.HeaderText = "File";
-            this.colFile.Name = "colFile";
-            this.colFile.ReadOnly = true;
-            this.colFile.SortMode = System.Windows.Forms.DataGridViewColumnSortMode.NotSortable;
-            // 
-            // colPage
-            // 
-            this.colPage.FillWeight = 25F;
-            this.colPage.HeaderText = "Page";
-            this.colPage.Name = "colPage";
-            this.colPage.ReadOnly = true;
-            this.colPage.SortMode = System.Windows.Forms.DataGridViewColumnSortMode.NotSortable;
-            // 
-            // colColor
-            // 
-            this.colColor.FillWeight = 25F;
-            this.colColor.HeaderText = "Color";
-            this.colColor.Name = "colColor";
-            this.colColor.ReadOnly = true;
-            this.colColor.SortMode = System.Windows.Forms.DataGridViewColumnSortMode.NotSortable;
-            // 
-            // colSize
-            // 
-            this.colSize.FillWeight = 50F;
-            this.colSize.HeaderText = "Size";
-            this.colSize.Name = "colSize";
-            this.colSize.ReadOnly = true;
-            this.colSize.SortMode = System.Windows.Forms.DataGridViewColumnSortMode.NotSortable;
             // 
             // dgvCounters
             // 
@@ -301,6 +261,37 @@ namespace TIFPDFCounter
             this.btnSettings.UseVisualStyleBackColor = true;
             this.btnSettings.Click += new System.EventHandler(this.btnSettings_Click);
             // 
+            // dgvPagesFilename
+            // 
+            this.dgvPagesFilename.HeaderText = "Filename";
+            this.dgvPagesFilename.Name = "dgvPagesFilename";
+            this.dgvPagesFilename.ReadOnly = true;
+            this.dgvPagesFilename.SortMode = System.Windows.Forms.DataGridViewColumnSortMode.NotSortable;
+            // 
+            // dgvPagesPageNumber
+            // 
+            this.dgvPagesPageNumber.FillWeight = 25F;
+            this.dgvPagesPageNumber.HeaderText = "Page";
+            this.dgvPagesPageNumber.Name = "dgvPagesPageNumber";
+            this.dgvPagesPageNumber.ReadOnly = true;
+            this.dgvPagesPageNumber.SortMode = System.Windows.Forms.DataGridViewColumnSortMode.NotSortable;
+            // 
+            // dgvPagesPageColor
+            // 
+            this.dgvPagesPageColor.FillWeight = 25F;
+            this.dgvPagesPageColor.HeaderText = "Color";
+            this.dgvPagesPageColor.Name = "dgvPagesPageColor";
+            this.dgvPagesPageColor.ReadOnly = true;
+            this.dgvPagesPageColor.SortMode = System.Windows.Forms.DataGridViewColumnSortMode.NotSortable;
+            // 
+            // dgvPagesPageSize
+            // 
+            this.dgvPagesPageSize.FillWeight = 50F;
+            this.dgvPagesPageSize.HeaderText = "Size";
+            this.dgvPagesPageSize.Name = "dgvPagesPageSize";
+            this.dgvPagesPageSize.ReadOnly = true;
+            this.dgvPagesPageSize.SortMode = System.Windows.Forms.DataGridViewColumnSortMode.NotSortable;
+            // 
             // MainForm
             // 
             this.AllowDrop = true;
@@ -342,13 +333,9 @@ namespace TIFPDFCounter
 		private System.Windows.Forms.DataGridView dgvFilePages;
 		private System.Windows.Forms.ContextMenuStrip ctxPages;
 		private System.Windows.Forms.ToolStripMenuItem highlightPagesToolStripMenuItem;
-		private System.Windows.Forms.DataGridViewTextBoxColumn colFile;
-		private System.Windows.Forms.DataGridViewTextBoxColumn colPage;
-		private System.Windows.Forms.DataGridViewTextBoxColumn colSize;
 		private System.Windows.Forms.Button btnManage;
         private System.Windows.Forms.Button btnClearList;
 		private System.Windows.Forms.Timer timer1;
-		private System.Windows.Forms.DataGridViewTextBoxColumn colColor;
         private System.Windows.Forms.DataGridViewTextBoxColumn colColorCount;
         private System.Windows.Forms.StatusStrip statusStrip1;
         private System.Windows.Forms.ToolStripStatusLabel lblTotalFiles;
@@ -356,5 +343,9 @@ namespace TIFPDFCounter
         private System.Windows.Forms.ToolStripStatusLabel lblSelected;
         private System.Windows.Forms.Button btnSettings;
         private System.Windows.Forms.ToolStripStatusLabel lblUpdate;
+        private System.Windows.Forms.DataGridViewTextBoxColumn dgvPagesFilename;
+        private System.Windows.Forms.DataGridViewTextBoxColumn dgvPagesPageNumber;
+        private System.Windows.Forms.DataGridViewTextBoxColumn dgvPagesPageColor;
+        private System.Windows.Forms.DataGridViewTextBoxColumn dgvPagesPageSize;
     }
 }

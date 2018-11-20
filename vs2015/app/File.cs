@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
 using System.Security.Cryptography;
@@ -9,12 +10,13 @@ namespace TIFPDFCounter
 {	
 	public class TPCFile
 	{
-        string md5hash;
+        private string md5hash;
+        private List<TPCFilePage> pages;
 
 		public TPCFile(string fileName, int pageCount)
 		{
             Filename = fileName;
-            Pages = new List<TPCFilePage>(pageCount);
+            pages = new List<TPCFilePage>(pageCount);
             try
             {
                 FileSize = new FileInfo(Filename).Length;
@@ -28,9 +30,19 @@ namespace TIFPDFCounter
 		}
 
         public string Filename { get; private set; }
-        public List<TPCFilePage> Pages { get; private set; }
+        public ReadOnlyCollection<TPCFilePage> Pages { get { return pages.AsReadOnly(); } }
         public long FileSize { get; private set; }
         public int PageCount { get; private set; }
+
+        public void AddPage(int pageNumber, decimal width, decimal height, ColorMode cm)
+        {
+            AddPage(new TPCFilePage(this, pageNumber, width, height, cm));
+        }
+
+        public void AddPage(TPCFilePage page)
+        {
+            pages.Add(page);
+        }
 
         public string MD5Hash
         {

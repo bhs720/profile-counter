@@ -154,7 +154,8 @@ namespace TIFPDFCounter
                             break;
                     }
 
-                    Result.Pages.Add(new TPCFilePage(pageNumber, width, height, cm));
+                    Result.AddPage(pageNumber, width, height, cm);
+
                     if (lastProgress == null || (DateTime.Now - lastProgress) > progressInterval)
                     {
                         lastProgress = DateTime.Now;

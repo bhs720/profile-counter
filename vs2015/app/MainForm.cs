@@ -141,20 +141,18 @@ namespace TIFPDFCounter
                 }
             }
 
-            foreach (var file in processedFiles)
+            foreach (var p in processedFiles
+                .OrderBy(f => f.Filename, new NaturalStringComparer())
+                .SelectMany(f => f.Pages))
             {
-                string fileName = Path.GetFileName(file.Filename);
-                for (int i = 0; i < file.Pages.Count; i++)
-                {
-                    decimal width = Math.Round(file.Pages[i].Width, 2);
-                    decimal height = Math.Round(file.Pages[i].Height, 2);
-                    string size = string.Format("{0} \u00d7 {1}", width, height);
-                    int rowIndex = dgvFilePages.Rows.Add(fileName, i + 1, file.Pages[i].ColorMode, size);
-                    dgvFilePages.Rows[rowIndex].Tag = file.Pages[i];
-                    fileName = null;
-                }
+                string filename = p.PageNumber == 1 ? Path.GetFileName(p.ParentFile.Filename) : "";
+                string pageNumber = p.PageNumber.ToString();
+                string pageColor = p.ColorMode.ToString();
+                string pageSize = string.Format("{0:F2} \u00d7 {1:F2}", p.Width, p.Height);
+                int rowIndex = dgvFilePages.Rows.Add(filename, pageNumber, pageColor, pageSize);
+                dgvFilePages.Rows[rowIndex].Tag = p;
             }
-            
+
             DoPageSizeCount();
         }
         
