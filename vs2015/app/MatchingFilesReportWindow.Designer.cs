@@ -70,6 +70,7 @@
             this.Name = "MatchingFilesReportWindow";
             this.ShowIcon = false;
             this.ShowInTaskbar = false;
+            this.SizeGripStyle = System.Windows.Forms.SizeGripStyle.Hide;
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterParent;
             this.Text = "Duplicate Files Detected";
             this.Load += new System.EventHandler(this.MatchingFilesReportWindow_Load);
