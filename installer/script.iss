@@ -45,8 +45,6 @@ Source: "..\vs2015\app\tpcIcon.ico"; DestDir: "{app}"
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{commondesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
-Name: "{group}\icon"; Filename: "{app}\tpcIcon.ico"; IconFilename: "{app}\tpcIcon.ico"
-Name: "{group}\{cm:UninstallProgram, {#MyAppName}}"; Filename: "{uninstallexe}"; IconFilename: "{app}\tpcIcon.ico"
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Flags: nowait postinstall skipifsilent; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"
