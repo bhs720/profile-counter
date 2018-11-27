@@ -34,6 +34,7 @@ namespace TIFPDFCounter
             process.StartInfo.FileName = @"mupdf.exe";
 
             string args = string.Format("\"{0}\" {1} {2}", filename, (checkColor ? colorThreshold.ToString() : "-1"), (checkPixels ? "1" : "0"));
+            Debug.Print("mupdf args: {0}", args);
             
             process.StartInfo.Arguments = Encoding.Default.GetString(Encoding.UTF8.GetBytes(args));
             process.StartInfo.CreateNoWindow = true;
@@ -49,9 +50,13 @@ namespace TIFPDFCounter
         public void Go()
         {
             process.Start();
+            if (!process.HasExited)
+            {
+                process.PriorityClass = ProcessPriorityClass.Idle;
+            }
             process.BeginErrorReadLine();
             process.BeginOutputReadLine();
-            process.PriorityClass = ProcessPriorityClass.Idle;
+            
             Debug.Print("FileAnalyzer started");
         }
 
@@ -90,9 +95,9 @@ namespace TIFPDFCounter
 
         private void process_Exited(object sender, EventArgs e)
         {
-            // Wait to receive all of stdout
             if (process != null)
             {
+                // Wait to receive all of stdout
                 process.WaitForExit();
                 if (process.ExitCode != 0)
                 {
