@@ -46,7 +46,7 @@ namespace TIFPDFCounter
             {
                 batchInProgress = true;
                 string filename = processQueue.Dequeue();
-                var analyzer = new FileAnalyzer(filename, Settings.Instance.PerformColorAnalysis, Settings.Instance.ColorThreshold, Settings.Instance.CheckImagePixels);
+                var analyzer = new FileAnalyzer(filename, Settings.Current.PerformColorAnalysis, Settings.Current.ColorThreshold, Settings.Current.CheckImagePixels);
                 GetRow(filename).Cells["Status"].Value = "Processing";
                 
                 runningProcesses.Add(analyzer);

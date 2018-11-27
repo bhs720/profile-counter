@@ -17,12 +17,12 @@ namespace TIFPDFCounter
             lblAppVersion.Text = "Version " + Application.ProductVersion;
             lblAppWebSite.Text = "https://bhs720.github.io/profile-counter";
 
-            txtColorSensitivity.Text = Math.Round((100 - Settings.Instance.ColorThreshold * 100)).ToString();
-            chkColorAnalysis.Checked = Settings.Instance.PerformColorAnalysis;
+            txtColorSensitivity.Text = Math.Round((100 - Settings.Current.ColorThreshold * 100)).ToString();
+            chkColorAnalysis.Checked = Settings.Current.PerformColorAnalysis;
             groupBox1.Enabled = chkColorAnalysis.Checked;
-            chkDuplicateFiles.Checked = Settings.Instance.CheckForDuplicateFiles;
-            chkImagePixels.Checked = Settings.Instance.CheckImagePixels;
-            chkUpdates.Checked = Settings.Instance.CheckForProgramUpdates;
+            chkDuplicateFiles.Checked = Settings.Current.CheckForDuplicateFiles;
+            chkImagePixels.Checked = Settings.Current.CheckImagePixels;
+            chkUpdates.Checked = Settings.Current.CheckForProgramUpdates;
         }
 
         void SettingsFormClosing(object sender, FormClosingEventArgs e)
@@ -35,7 +35,7 @@ namespace TIFPDFCounter
                     {
                         int sensitivity = int.Parse(txtColorSensitivity.Text);
                         decimal threshold = (100 - sensitivity) / (decimal)100;
-                        Settings.Instance.ColorThreshold = threshold;
+                        Settings.Current.ColorThreshold = threshold;
                     }
                     catch (Exception ex)
                     {
@@ -44,10 +44,10 @@ namespace TIFPDFCounter
                     }
                 }
 
-                Settings.Instance.CheckImagePixels = chkImagePixels.Checked;
-                Settings.Instance.CheckForDuplicateFiles = chkDuplicateFiles.Checked;
-                Settings.Instance.PerformColorAnalysis = chkColorAnalysis.Checked;
-                Settings.Instance.CheckForProgramUpdates = chkUpdates.Checked;
+                Settings.Current.CheckImagePixels = chkImagePixels.Checked;
+                Settings.Current.CheckForDuplicateFiles = chkDuplicateFiles.Checked;
+                Settings.Current.PerformColorAnalysis = chkColorAnalysis.Checked;
+                Settings.Current.CheckForProgramUpdates = chkUpdates.Checked;
                 Settings.Save();
             }
         }
@@ -96,7 +96,7 @@ namespace TIFPDFCounter
 
         private void button1_Click(object sender, EventArgs e)
         {
-            txtColorSensitivity.Text = "75";
+            txtColorSensitivity.Text = Math.Round((100 - Settings.DefaultUserSettings.ColorThreshold * 100)).ToString();
         }
     }
 }

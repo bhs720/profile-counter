@@ -126,7 +126,7 @@ namespace TIFPDFCounter
             // add this batch to LoadedFiles
             AcceptedFiles.AddRange(processedFiles);
 
-            if (Settings.Instance.CheckForDuplicateFiles)
+            if (Settings.Current.CheckForDuplicateFiles)
             {
                 var matchingFiles = AcceptedFiles
                     .GroupBy(x => x.FileSize).Where(x => x.Count() > 1).SelectMany(x => x)
@@ -160,7 +160,7 @@ namespace TIFPDFCounter
         {
             dgvCounters.Rows.Clear();
 
-            var activePageSizes = Settings.Instance.PageStore.Where(p => p.Active == true).Select(ps => new PageSizeCounter(ps)).ToList();
+            var activePageSizes = Settings.Current.PageStore.Where(p => p.Active == true).Select(ps => new PageSizeCounter(ps)).ToList();
 
             // Add a catch-all "Uknown" page size
             activePageSizes.Add(new PageSizeCounter(null));
@@ -198,11 +198,11 @@ namespace TIFPDFCounter
 
         void MainFormFormClosing(object sender, FormClosingEventArgs e)
         {
-            Settings.Instance.WindowState = WindowState;
+            Settings.Current.WindowState = WindowState;
             if (WindowState == FormWindowState.Normal)
             {
-                Settings.Instance.WindowSize = Size;
-                Settings.Instance.WindowLocation = Location;
+                Settings.Current.WindowSize = Size;
+                Settings.Current.WindowLocation = Location;
             }
             Settings.Save();
         }
@@ -210,13 +210,13 @@ namespace TIFPDFCounter
         async void MainFormLoad(object sender, EventArgs e)
         {
             Settings.Load();
-            Size = Settings.Instance.WindowSize;
-            Location = Settings.Instance.WindowLocation;
-            WindowState = Settings.Instance.WindowState;
+            Size = Settings.Current.WindowSize;
+            Location = Settings.Current.WindowLocation;
+            WindowState = Settings.Current.WindowState;
             if (WindowState == FormWindowState.Minimized)
                 WindowState = FormWindowState.Normal;
             
-            if (Settings.Instance.CheckForProgramUpdates)
+            if (Settings.Current.CheckForProgramUpdates)
                 await CheckForProgramUpdates();
         }
 
@@ -229,7 +229,7 @@ namespace TIFPDFCounter
                 {
                     webClient.CachePolicy = new System.Net.Cache.RequestCachePolicy(System.Net.Cache.RequestCacheLevel.NoCacheNoStore);
                     ServicePointManager.SecurityProtocol = SecurityProtocolType.Ssl3 | SecurityProtocolType.Tls | SecurityProtocolType.Tls11 | SecurityProtocolType.Tls12;
-                    json = await webClient.DownloadStringTaskAsync(Settings.Instance.AppUpdateJsonUrl);
+                    json = await webClient.DownloadStringTaskAsync(Settings.Current.AppUpdateJsonUrl);
                 }
                 dynamic obj = JsonConvert.DeserializeObject<dynamic>(json);
                 string latestVersion = obj.version;
@@ -288,12 +288,12 @@ namespace TIFPDFCounter
 
         void BtnManageClick(object sender, EventArgs e)
         {
-            using (var psm = new PageSizeManager(Settings.Instance.PageStore))
+            using (var psm = new PageSizeManager(Settings.Current.PageStore))
             {
                 psm.ShowDialog(this);
                 if (psm.DialogResult == DialogResult.OK)
                 {
-                    Settings.Instance.PageStore = psm.PageSizes;
+                    Settings.Current.PageStore = psm.PageSizes;
                 }
             }
             DoPageSizeCount();

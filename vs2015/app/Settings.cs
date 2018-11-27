@@ -15,7 +15,7 @@ namespace TIFPDFCounter
         readonly static string settingsFilename = "UserSettings.xml";
         readonly static string settingsFile = Path.Combine(appData, settingsFilename);
         
-        public static UserSettings Instance { get; private set; }
+        public static UserSettings Current { get; private set; }
 
         static Settings()
         {
@@ -29,13 +29,13 @@ namespace TIFPDFCounter
                 using (var stream = new FileStream(settingsFile, FileMode.Open))
                 {
                     var xml = new XmlSerializer(typeof(UserSettings));
-                    Instance = xml.Deserialize(stream) as UserSettings;
+                    Current = xml.Deserialize(stream) as UserSettings;
                 }
             }
             catch (Exception)
             {
                 MessageBox.Show("Default settings are loaded.", "Defaults", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                Instance = DefaultUserSettings;
+                Current = DefaultUserSettings;
             }
         }
 
@@ -46,13 +46,16 @@ namespace TIFPDFCounter
                 using (var stream = new FileStream(settingsFile, FileMode.Create))
                 {
                     var xml = new XmlSerializer(typeof(UserSettings));
-                    xml.Serialize(stream, Instance);
+                    xml.Serialize(stream, Current);
                 }
             }
             catch { }
         }
 
-        static UserSettings DefaultUserSettings
+        /// <summary>
+        /// Hard-coded default user settings
+        /// </summary>
+        public static UserSettings DefaultUserSettings
         {
             get
             {
