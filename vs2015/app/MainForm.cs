@@ -160,7 +160,7 @@ namespace TIFPDFCounter
         {
             dgvCounters.Rows.Clear();
 
-            var activePageSizes = Settings.Current.PageStore.Where(p => p.Active == true).Select(ps => new PageSizeCounter(ps)).ToList();
+            var activePageSizes = Settings.Current.PageSizes.Where(p => p.Active == true).Select(ps => new PageSizeCounter(ps)).ToList();
 
             // Add a catch-all "Uknown" page size
             activePageSizes.Add(new PageSizeCounter(null));
@@ -288,12 +288,12 @@ namespace TIFPDFCounter
 
         void BtnManageClick(object sender, EventArgs e)
         {
-            using (var psm = new PageSizeManager(Settings.Current.PageStore))
+            using (var psm = new PageSizeManager(Settings.Current.PageSizes))
             {
                 psm.ShowDialog(this);
                 if (psm.DialogResult == DialogResult.OK)
                 {
-                    Settings.Current.PageStore = psm.PageSizes;
+                    Settings.Current.PageSizes = psm.PageSizes;
                 }
             }
             DoPageSizeCount();

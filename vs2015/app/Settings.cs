@@ -6,6 +6,7 @@ using System.Drawing;
 using System.Windows.Forms;
 using System.Xml.Serialization;
 using System.IO;
+using System.Reflection;
 
 namespace TIFPDFCounter
 {
@@ -29,6 +30,18 @@ namespace TIFPDFCounter
                 using (var stream = new FileStream(settingsFile, FileMode.Open))
                 {
                     var xml = new XmlSerializer(typeof(UserSettings));
+                    
+                    xml.UnknownAttribute += (sender, args) =>
+                    {
+                        System.Diagnostics.Debug.Print("UnknownAttribute: " + args.ToString());
+                        throw new Exception("Unknown attribute: " + args.Attr.Name);
+                    };
+                    xml.UnknownElement += (sender, args) =>
+                    {
+                        System.Diagnostics.Debug.Print("UnknownElement: " + args.Element.Name);
+                        throw new Exception("Unknown element: " + args.Element.Name);
+                    };
+
                     Current = xml.Deserialize(stream) as UserSettings;
                 }
             }
@@ -62,7 +75,7 @@ namespace TIFPDFCounter
                 var def = new UserSettings();
                 def.AppWebsiteUrl = "https://bhs720.github.io/profile-counter";
                 def.AppUpdateJsonUrl = "https://bhs720.github.io/profile-counter/latest_version.json";
-                def.PageStore = DefaultPageStore;
+                def.PageSizes = DefaultPageSizes;
                 def.WindowLocation = new Point(0, 0);
                 def.WindowSize = new Size(640, 480);
                 def.WindowState = FormWindowState.Normal;
@@ -78,7 +91,7 @@ namespace TIFPDFCounter
         /// <summary>
         /// Hard-coded standard page sizes
         /// </summary>
-        public static List<PageSize> DefaultPageStore
+        public static List<PageSize> DefaultPageSizes
         {
             get
             {
@@ -105,7 +118,7 @@ namespace TIFPDFCounter
         {
             public string AppWebsiteUrl { get; set; }
             public string AppUpdateJsonUrl { get; set; }
-            public List<PageSize> PageStore { get; set; }
+            public List<PageSize> PageSizes { get; set; }
             public Point WindowLocation { get; set; }
             public Size WindowSize { get; set; }
             public FormWindowState WindowState { get; set; }

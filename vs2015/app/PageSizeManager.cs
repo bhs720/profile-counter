@@ -125,7 +125,7 @@ namespace TIFPDFCounter
             var dr = MessageBox.Show("This will delete all of your page sizes and load the default standard sizes.", "Are you sure?", MessageBoxButtons.OKCancel, MessageBoxIcon.Exclamation);
             if (dr == DialogResult.OK)
             {
-                PutPageSizesIntoDataGridView(Settings.DefaultPageStore);
+                PutPageSizesIntoDataGridView(Settings.DefaultPageSizes);
             }   
         }
 
