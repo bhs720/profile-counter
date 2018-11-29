@@ -33,7 +33,7 @@ namespace TIFPDFCounter
             runningProcesses = new List<FileAnalyzer>();
             completedFiles = new List<TPCFile>();
             failedFiles = new List<FileAnalyzer>();
-            maxProcesses = Environment.ProcessorCount;
+            maxProcesses = Math.Max(Environment.ProcessorCount - 1, 1);
 
             int colIndex = grid.Columns.Add(new DataGridViewProgressColumn());
             grid.Columns[colIndex].Name = "Progress";
@@ -46,38 +46,69 @@ namespace TIFPDFCounter
             {
                 batchInProgress = true;
                 string filename = processQueue.Dequeue();
-                var analyzer = new FileAnalyzer(filename, Settings.Current.PerformColorAnalysis, Settings.Current.ColorThreshold, Settings.Current.CheckImagePixels);
-                GetRow(filename).Cells["Status"].Value = "Processing";
+
+                var dgvr = GetRow(filename);
+                dgvr.Cells["Status"].Value = "Processing";
                 
+                var analyzer = new FileAnalyzer(filename, Settings.Current.PerformColorAnalysis, Settings.Current.ColorThreshold, Settings.Current.CheckImagePixels);
+                // save a reference to the DataGridViewRow in the FileAnalyzer.Tag
+                // this is used later for progress updates
+                analyzer.Tag = dgvr;
+
                 runningProcesses.Add(analyzer);
                 analyzer.ProgressChanged += Analyzer_ProgressChanged;
                 analyzer.AnalysisComplete += Analyzer_AnalysisComplete;
                 analyzer.Go();
             }
         }
-
+        
         private DataGridViewRow GetRow(string filePath)
         {
             return grid.Rows.Cast<DataGridViewRow>()
                 .First(r => ((string)r.Tag).Equals(filePath));
         }
 
-        private void Analyzer_AnalysisComplete(FileAnalyzer instance)
+        private void ScrollToFirstProcessingRow()
+        {
+            if (grid.Rows.Count > 0)
+            {
+                var dgvr = grid.Rows.Cast<DataGridViewRow>().DefaultIfEmpty(null).FirstOrDefault(r =>
+                {
+                    string cellValue = (string)r.Cells["Status"].Value;
+                    return cellValue == "Processing" || cellValue == "Queued";
+                });
+                if (dgvr != null && dgvr.Index >= 0 && dgvr.Index < grid.Rows.Count)
+                {
+                    grid.FirstDisplayedScrollingRowIndex = dgvr.Index;
+                }
+            }
+        }
+
+        private void Analyzer_ProgressChanged(FileAnalyzer instance, int completed, int total)
         {
             Utility.InvokeIfRequired(this, () =>
             {
-                runningProcesses.Remove(instance);
+                var dgvr = (DataGridViewRow)instance.Tag;
+                dgvr.Cells["Progress"].Value = completed * 100 / total;
+            });
+        }
+
+        private void Analyzer_AnalysisComplete(FileAnalyzer instance)
+        {
+            Utility.InvokeIfRequired(this, () =>
+            {   
                 instance.ProgressChanged -= Analyzer_ProgressChanged;
                 instance.AnalysisComplete -= Analyzer_AnalysisComplete;
-                
+                runningProcesses.Remove(instance);
+                var dgvr = (DataGridViewRow)instance.Tag;
+
                 if (instance.Cancelled)
                 {
-                    GetRow(instance.Filename).Cells["Status"].Value = "Cancelled";
+                    dgvr.Cells["Status"].Value = "Cancelled";
                 }
                 else if (instance.Failed)
                 {
                     string errorMessage = "Failed: " + instance.Errors.ToString(0, Math.Min(instance.Errors.Length, 255));
-                    var dgvr = GetRow(instance.Filename);
                     dgvr.Cells["Status"].Value = errorMessage;
                     dgvr.DefaultCellStyle.BackColor = Color.DarkRed;
                     dgvr.DefaultCellStyle.ForeColor = Color.White;
@@ -87,8 +118,9 @@ namespace TIFPDFCounter
                 }
                 else
                 {
+                    System.Diagnostics.Debug.Assert(instance.Result != null);
                     completedFiles.Add(instance.Result);
-                    grid.Rows.Remove(GetRow(instance.Filename));
+                    grid.Rows.Remove(dgvr);
                 }
 
                 ScrollToFirstProcessingRow();
@@ -102,22 +134,6 @@ namespace TIFPDFCounter
                     NextFile();
                 }
             });
-        }
-
-        private void ScrollToFirstProcessingRow()
-        {
-            if (grid.Rows.Count > 0)
-            {
-                var dgvr = grid.Rows.Cast<DataGridViewRow>().DefaultIfEmpty(null).FirstOrDefault(r =>
-                {
-                    string cellValue = (string)r.Cells["Status"].Value;
-                    return cellValue == "Processing" || cellValue == "Queued";
-                });
-                if (dgvr != null)
-                {
-                    grid.FirstDisplayedScrollingRowIndex = dgvr.Index;
-                }
-            }
         }
 
         private void FinishBatch()
@@ -135,8 +151,9 @@ namespace TIFPDFCounter
 
         private void CancelBatch()
         {
+            System.Diagnostics.Debug.Print("Cancel batch");
             processQueue.Clear();
-            foreach (var proc in runningProcesses)
+            foreach (var proc in runningProcesses.ToList())
             {
                 proc.Cancel();
             }
@@ -153,15 +170,7 @@ namespace TIFPDFCounter
                 CancelBatch();
             }
         }
-
-        private void Analyzer_ProgressChanged(FileAnalyzer instance, int completed, int total)
-        {
-            Utility.InvokeIfRequired(this, () =>
-            {
-                GetRow(instance.Filename).Cells["Progress"].Value = completed * 100 / total;
-            });
-        }
-
+        
         private void ProcessWindow_Load(object sender, EventArgs e)
         {
             foreach (var filePath in processQueue)
@@ -186,34 +195,54 @@ namespace TIFPDFCounter
 
             NextFile();
         }
-
-        private void grid_CellDoubleClick(object sender, DataGridViewCellEventArgs e)
+        
+        private async void grid_CellDoubleClick(object sender, DataGridViewCellEventArgs e)
         {
             if (e.ColumnIndex >= 0 && e.RowIndex >= 0)
             {
-                string fileName = grid.Rows[e.RowIndex].Tag as string;
+                string fileName = (string)grid.Rows[e.RowIndex].Tag;
                 if (e.ColumnIndex == grid.Columns["Folder"].Index)
                 {
-                    using (var proc = new System.Diagnostics.Process())
+                    try
                     {
-                        proc.StartInfo.FileName = "explorer.exe";
-                        proc.StartInfo.Arguments = "/select,\"" + fileName + "\"";
-                        proc.StartInfo.ErrorDialog = true;
-                        proc.Start();
+                        // need to release the user's mouse
+                        await Task.Run(() =>
+                        {
+                            using (var proc = new System.Diagnostics.Process())
+                            {
+                                proc.StartInfo.FileName = "explorer.exe";
+                                proc.StartInfo.Arguments = "/select,\"" + fileName + "\"";
+                                proc.StartInfo.ErrorDialog = true;
+                                proc.Start();
+                            }
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show("Failed to start explorer.exe\n\n" + ex.Message);
                     }
                 }
                 else if (e.ColumnIndex == grid.Columns["Filename"].Index)
                 {
-                    using (var proc = new System.Diagnostics.Process())
+                    try
                     {
-                        proc.StartInfo.FileName = fileName;
-                        proc.StartInfo.ErrorDialog = true;
-                        proc.Start();
+                        // need to release the user's mouse
+                        await Task.Run(() =>
+                        {
+                            using (var proc = new System.Diagnostics.Process())
+                            {
+                                proc.StartInfo.FileName = fileName;
+                                proc.StartInfo.ErrorDialog = true;
+                                proc.Start();
+                            }
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show("Failed to open " + fileName + "\n\n" + ex.Message);
                     }
                 }
             }
         }
-
-        
     }
 }
