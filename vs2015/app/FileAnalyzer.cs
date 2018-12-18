@@ -31,7 +31,7 @@ namespace TIFPDFCounter
         /// This sentinel value is needed because <see cref="Process.Exited"/> may be called before 
         /// every line of <see cref="Process.StandardOutput"/> has been received asynchronously.
         /// </summary>
-        private bool lastOutputDataReceived;
+        private volatile bool lastOutputDataReceived;
 
         public delegate void ProgressChangedEventHandler(FileAnalyzer instance, int completed, int total);
         public delegate void AnalysisCompleteEventHandler(FileAnalyzer instance);
@@ -131,7 +131,10 @@ namespace TIFPDFCounter
         private void process_Exited(object sender, EventArgs e)
         {
             // Block and wait to receive all of stdout
-            while (!lastOutputDataReceived) { }
+            while (!lastOutputDataReceived)
+            {
+                System.Threading.Thread.Sleep(100);
+            }
 
             if (process.ExitCode != 0)
             {
