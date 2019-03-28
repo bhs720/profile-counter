@@ -23,7 +23,7 @@ DefaultDirName={pf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 OutputDir=.\releases\{#MyAppVersion}
 OutputBaseFilename=ProFileCounterSetup{#MyAppVersion}
-SetupIconFile=..\vs2015\app\tpcIcon.ico
+SetupIconFile=..\vs2017\app\tpcIcon.ico
 Compression=lzma
 SolidCompression=yes
 UninstallDisplayIcon={app}\tpcIcon.ico
@@ -36,11 +36,11 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "..\vs2015\x64\Release\ProFile Counter.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\vs2015\x64\Release\mupdf.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\vs2015\x64\Release\Newtonsoft.Json.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\vs2017\x64\Release\ProFile Counter.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\vs2017\x64\Release\mupdf.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\vs2017\x64\Release\Newtonsoft.Json.dll"; DestDir: "{app}"; Flags: ignoreversion
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
-Source: "..\vs2015\app\tpcIcon.ico"; DestDir: "{app}"
+Source: "..\vs2017\app\tpcIcon.ico"; DestDir: "{app}"
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
