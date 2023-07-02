@@ -1,10 +1,7 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Diagnostics;
-using System.Windows.Forms;
 
 namespace TIFPDFCounter
 {
@@ -66,8 +63,8 @@ namespace TIFPDFCounter
         /// <summary>
         /// To be used by the caller for tracking purposes. <see cref="FileAnalyzer"/> does not read or modify this object.
         /// </summary>
-        public Object Tag { get; set; }        
-        
+        public Object Tag { get; set; }
+
         public FileAnalyzer(string filename, bool checkColor, decimal colorThreshold, bool checkPixels)
         {
             Filename = filename;
@@ -77,7 +74,7 @@ namespace TIFPDFCounter
 
             string args = string.Format("\"{0}\" {1} {2}", filename, (checkColor ? colorThreshold.ToString() : "-1"), (checkPixels ? "1" : "0"));
             Debug.Print("mupdf.exe {0}", args);
-            
+
             process.StartInfo.Arguments = Encoding.Default.GetString(Encoding.UTF8.GetBytes(args));
             process.StartInfo.CreateNoWindow = true;
             process.StartInfo.RedirectStandardOutput = true;
@@ -151,15 +148,15 @@ namespace TIFPDFCounter
                 {
                     Fail("Page count mismatch. Expected=" + Result.PageCount + " Received=" + Result.Pages.Count);
                 }
-            }            
-            
+            }
+
             AnalysisComplete.Invoke(this);
 
             process.Close();
             process.Dispose();
             process = null;
         }
-        
+
         void process_OutputDataReceived(object sender, DataReceivedEventArgs e)
         {
             if (string.IsNullOrEmpty(e.Data))
@@ -173,17 +170,18 @@ namespace TIFPDFCounter
                 //Debug.Print(e.Data);
 
                 // First line of program output gives:
-                // PageCount=#
-                var matchPageCount = Regex.Match(e.Data, @"^PageCount=(\d+)$");
-                
+                // PageCount=# BookmarkCount=#
+                var matchPageCount = Regex.Match(e.Data, @"^PageCount=(\d+) BookmarkCount=(\d+)$");
+
                 // Subsequent lines give:
                 // Page=# Size=#.#,#.# Color=#
                 var matchPageSpec = Regex.Match(e.Data, @"^Page=(\d+) Size=([\d\.]+),([\d\.]+) Color=(-?\d+)$");
 
-                if (matchPageCount.Success && matchPageCount.Groups.Count == 2)
+                if (matchPageCount.Success && matchPageCount.Groups.Count == 3)
                 {
                     int pageCount = Convert.ToInt32(matchPageCount.Groups[1].Value);
-                    Result = new TPCFile(Filename, pageCount);
+                    int bookmarkCount = Convert.ToInt32(matchPageCount.Groups[2].Value);
+                    Result = new TPCFile(Filename, pageCount, bookmarkCount);
                     ProgressChanged.Invoke(this, 0, pageCount);
                 }
                 else if (matchPageSpec.Success && matchPageSpec.Groups.Count == 5)

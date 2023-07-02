@@ -1,12 +1,4 @@
-﻿/*
- * Created by SharpDevelop.
- * User: bsmith
- * Date: 5/19/2014
- * Time: 3:46 PM
- * 
- * To change this template use Tools | Options | Coding | Edit Standard Headers.
- */
-namespace TIFPDFCounter
+﻿namespace TIFPDFCounter
 {
 	partial class MainForm
 	{
@@ -39,10 +31,6 @@ namespace TIFPDFCounter
             this.components = new System.ComponentModel.Container();
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainForm));
             this.dgvFilePages = new System.Windows.Forms.DataGridView();
-            this.dgvPagesFilename = new System.Windows.Forms.DataGridViewTextBoxColumn();
-            this.dgvPagesPageNumber = new System.Windows.Forms.DataGridViewTextBoxColumn();
-            this.dgvPagesPageColor = new System.Windows.Forms.DataGridViewTextBoxColumn();
-            this.dgvPagesPageSize = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.dgvCounters = new System.Windows.Forms.DataGridView();
             this.colPageSize = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.colColorCount = new System.Windows.Forms.DataGridViewTextBoxColumn();
@@ -55,11 +43,12 @@ namespace TIFPDFCounter
             this.timer1 = new System.Windows.Forms.Timer(this.components);
             this.statusStrip1 = new System.Windows.Forms.StatusStrip();
             this.lblTotalFiles = new System.Windows.Forms.ToolStripStatusLabel();
+            this.lblTotalBookmarks = new System.Windows.Forms.ToolStripStatusLabel();
             this.lblTotalPages = new System.Windows.Forms.ToolStripStatusLabel();
             this.lblSelected = new System.Windows.Forms.ToolStripStatusLabel();
+            this.lblSpacer = new System.Windows.Forms.ToolStripStatusLabel();
             this.lblUpdate = new System.Windows.Forms.ToolStripStatusLabel();
             this.btnSettings = new System.Windows.Forms.Button();
-            this.toolStripStatusLabel1 = new System.Windows.Forms.ToolStripStatusLabel();
             ((System.ComponentModel.ISupportInitialize)(this.dgvFilePages)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.dgvCounters)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
@@ -78,11 +67,6 @@ namespace TIFPDFCounter
             this.dgvFilePages.AutoSizeColumnsMode = System.Windows.Forms.DataGridViewAutoSizeColumnsMode.Fill;
             this.dgvFilePages.CellBorderStyle = System.Windows.Forms.DataGridViewCellBorderStyle.None;
             this.dgvFilePages.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            this.dgvFilePages.Columns.AddRange(new System.Windows.Forms.DataGridViewColumn[] {
-            this.dgvPagesFilename,
-            this.dgvPagesPageNumber,
-            this.dgvPagesPageColor,
-            this.dgvPagesPageSize});
             this.dgvFilePages.Dock = System.Windows.Forms.DockStyle.Fill;
             this.dgvFilePages.Location = new System.Drawing.Point(0, 0);
             this.dgvFilePages.Name = "dgvFilePages";
@@ -96,37 +80,6 @@ namespace TIFPDFCounter
             this.dgvFilePages.Size = new System.Drawing.Size(336, 205);
             this.dgvFilePages.TabIndex = 0;
             this.dgvFilePages.SelectionChanged += new System.EventHandler(this.dgvFilePages_SelectionChanged);
-            // 
-            // dgvPagesFilename
-            // 
-            this.dgvPagesFilename.HeaderText = "Filename";
-            this.dgvPagesFilename.Name = "dgvPagesFilename";
-            this.dgvPagesFilename.ReadOnly = true;
-            this.dgvPagesFilename.SortMode = System.Windows.Forms.DataGridViewColumnSortMode.NotSortable;
-            // 
-            // dgvPagesPageNumber
-            // 
-            this.dgvPagesPageNumber.FillWeight = 25F;
-            this.dgvPagesPageNumber.HeaderText = "Page";
-            this.dgvPagesPageNumber.Name = "dgvPagesPageNumber";
-            this.dgvPagesPageNumber.ReadOnly = true;
-            this.dgvPagesPageNumber.SortMode = System.Windows.Forms.DataGridViewColumnSortMode.NotSortable;
-            // 
-            // dgvPagesPageColor
-            // 
-            this.dgvPagesPageColor.FillWeight = 25F;
-            this.dgvPagesPageColor.HeaderText = "Color";
-            this.dgvPagesPageColor.Name = "dgvPagesPageColor";
-            this.dgvPagesPageColor.ReadOnly = true;
-            this.dgvPagesPageColor.SortMode = System.Windows.Forms.DataGridViewColumnSortMode.NotSortable;
-            // 
-            // dgvPagesPageSize
-            // 
-            this.dgvPagesPageSize.FillWeight = 50F;
-            this.dgvPagesPageSize.HeaderText = "Size";
-            this.dgvPagesPageSize.Name = "dgvPagesPageSize";
-            this.dgvPagesPageSize.ReadOnly = true;
-            this.dgvPagesPageSize.SortMode = System.Windows.Forms.DataGridViewColumnSortMode.NotSortable;
             // 
             // dgvCounters
             // 
@@ -244,9 +197,10 @@ namespace TIFPDFCounter
             // 
             this.statusStrip1.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.lblTotalFiles,
+            this.lblTotalBookmarks,
             this.lblTotalPages,
             this.lblSelected,
-            this.toolStripStatusLabel1,
+            this.lblSpacer,
             this.lblUpdate});
             this.statusStrip1.Location = new System.Drawing.Point(1, 247);
             this.statusStrip1.Name = "statusStrip1";
@@ -259,14 +213,21 @@ namespace TIFPDFCounter
             // 
             this.lblTotalFiles.BorderSides = System.Windows.Forms.ToolStripStatusLabelBorderSides.Right;
             this.lblTotalFiles.Name = "lblTotalFiles";
-            this.lblTotalFiles.Size = new System.Drawing.Size(76, 19);
+            this.lblTotalFiles.Size = new System.Drawing.Size(74, 19);
             this.lblTotalFiles.Text = "Total Files: 0";
+            // 
+            // lblTotalBookmarks
+            // 
+            this.lblTotalBookmarks.BorderSides = System.Windows.Forms.ToolStripStatusLabelBorderSides.Right;
+            this.lblTotalBookmarks.Name = "lblTotalBookmarks";
+            this.lblTotalBookmarks.Size = new System.Drawing.Size(110, 19);
+            this.lblTotalBookmarks.Text = "Total Bookmarks: 0";
             // 
             // lblTotalPages
             // 
             this.lblTotalPages.BorderSides = System.Windows.Forms.ToolStripStatusLabelBorderSides.Right;
             this.lblTotalPages.Name = "lblTotalPages";
-            this.lblTotalPages.Size = new System.Drawing.Size(84, 19);
+            this.lblTotalPages.Size = new System.Drawing.Size(82, 19);
             this.lblTotalPages.Text = "Total Pages: 0";
             // 
             // lblSelected
@@ -275,6 +236,12 @@ namespace TIFPDFCounter
             this.lblSelected.Name = "lblSelected";
             this.lblSelected.Size = new System.Drawing.Size(67, 19);
             this.lblSelected.Text = "Selected: 0";
+            // 
+            // lblSpacer
+            // 
+            this.lblSpacer.Name = "lblSpacer";
+            this.lblSpacer.Size = new System.Drawing.Size(154, 19);
+            this.lblSpacer.Spring = true;
             // 
             // lblUpdate
             // 
@@ -293,12 +260,6 @@ namespace TIFPDFCounter
             this.btnSettings.Text = "Settings";
             this.btnSettings.UseVisualStyleBackColor = true;
             this.btnSettings.Click += new System.EventHandler(this.btnSettings_Click);
-            // 
-            // toolStripStatusLabel1
-            // 
-            this.toolStripStatusLabel1.Name = "toolStripStatusLabel1";
-            this.toolStripStatusLabel1.Size = new System.Drawing.Size(229, 19);
-            this.toolStripStatusLabel1.Spring = true;
             // 
             // MainForm
             // 
@@ -352,10 +313,7 @@ namespace TIFPDFCounter
         private System.Windows.Forms.ToolStripStatusLabel lblSelected;
         private System.Windows.Forms.Button btnSettings;
         private System.Windows.Forms.ToolStripStatusLabel lblUpdate;
-        private System.Windows.Forms.DataGridViewTextBoxColumn dgvPagesFilename;
-        private System.Windows.Forms.DataGridViewTextBoxColumn dgvPagesPageNumber;
-        private System.Windows.Forms.DataGridViewTextBoxColumn dgvPagesPageColor;
-        private System.Windows.Forms.DataGridViewTextBoxColumn dgvPagesPageSize;
-        private System.Windows.Forms.ToolStripStatusLabel toolStripStatusLabel1;
+        private System.Windows.Forms.ToolStripStatusLabel lblSpacer;
+        private System.Windows.Forms.ToolStripStatusLabel lblTotalBookmarks;
     }
 }
