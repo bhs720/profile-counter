@@ -2,6 +2,22 @@
 #include <stdlib.h>
 #include "mupdf\fitz.h"
 
+
+static int count_bookmarks(fz_outline* outline)
+{
+	int count = 0;
+	while (outline)
+	{
+		count++;
+		if (outline->down)
+		{
+			count += count_bookmarks(outline->down);
+		}
+		outline = outline->next;
+	}
+	return count;
+}
+
 int main(int argc, char **argv)
 {
 	char *filename = argv[1];
@@ -21,7 +37,26 @@ int main(int argc, char **argv)
 		exit(-1);
 	}
 
-	fprintf(stdout, "PageCount=%i\n", pagecount);
+	fz_outline* outline;
+	fz_var(outline);
+	fz_try(ctx)
+	{
+		outline = fz_load_outline(ctx, doc);
+	}
+	fz_catch(ctx)
+	{
+		fprintf(stderr, "Failed to load document outline\n");
+		outline = NULL;
+	}
+
+	int bookmarkcount = 0;
+	if (outline)
+	{
+		bookmarkcount = count_bookmarks(outline);
+		fz_drop_outline(ctx, outline);
+	}
+
+	fprintf(stdout, "PageCount=%i BookmarkCount=%i\n", pagecount, bookmarkcount);
 	fflush(stdout);
 
 	for (int i = 0; i < pagecount; i++)

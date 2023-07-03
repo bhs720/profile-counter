@@ -1,20 +1,17 @@
-﻿using System;
-using System.IO;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Diagnostics;
-using System.Text.RegularExpressions;
+using System.IO;
 using System.Security.Cryptography;
 
 namespace TIFPDFCounter
-{	
-	public class TPCFile
-	{
+{
+    public class TPCFile
+    {
         private string md5hash;
         private List<TPCFilePage> pages;
 
-		public TPCFile(string fileName, int pageCount)
-		{
+        public TPCFile(string fileName, int pageCount, int bookmarkCount)
+        {
             Filename = fileName;
             pages = new List<TPCFilePage>(pageCount);
             try
@@ -25,14 +22,16 @@ namespace TIFPDFCounter
             {
                 FileSize = 0;
             }
-            
+
             PageCount = pageCount;
-		}
+            BookmarkCount = bookmarkCount;
+        }
 
         public string Filename { get; private set; }
         public ReadOnlyCollection<TPCFilePage> Pages { get { return pages.AsReadOnly(); } }
         public long FileSize { get; private set; }
         public int PageCount { get; private set; }
+        public int BookmarkCount { get; private set; }
 
         public void AddPage(int pageNumber, decimal width, decimal height, ColorMode cm)
         {
@@ -68,5 +67,5 @@ namespace TIFPDFCounter
             }
             this.md5hash = hex.ToString();
         }
-	}
+    }
 }

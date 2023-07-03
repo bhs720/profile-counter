@@ -1,16 +1,15 @@
-﻿using System;
+﻿using Newtonsoft.Json;
+using System;
 using System.Collections.Generic;
-using System.Drawing;
-using System.Windows.Forms;
-using System.IO;
+using System.Data;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
+using System.Net;
 using System.Runtime.InteropServices;
 using System.Security;
-using System.Net;
-using System.Net.Http;
-using Newtonsoft.Json;
 using System.Threading.Tasks;
+using System.Windows.Forms;
 
 namespace TIFPDFCounter
 {
@@ -21,17 +20,18 @@ namespace TIFPDFCounter
             InitializeComponent();
             lblUpdate.Text = "";
             AcceptedFiles = new List<TPCFile>();
+            Grid_FilePages_Initialize();
         }
-        
+
         List<TPCFile> AcceptedFiles { get; set; }
-        
+
         protected override void OnDragEnter(DragEventArgs drgevent)
         {
             if (drgevent.Data.GetDataPresent(DataFormats.FileDrop))
                 drgevent.Effect = DragDropEffects.Copy;
             base.OnDragEnter(drgevent);
         }
-        
+
         protected override void OnDragDrop(DragEventArgs drgevent)
         {
             var dropData = drgevent.Data.GetData(DataFormats.FileDrop) as string[];
@@ -110,9 +110,9 @@ namespace TIFPDFCounter
         {
             timer1.Stop();
             timer1.Enabled = false;
-            
+
             if (dropFiles == null || dropFiles.Count == 0)
-                return;                
+                return;
 
             List<TPCFile> processedFiles;
             using (var processWindow = new ProcessWindow(dropFiles))
@@ -141,21 +141,97 @@ namespace TIFPDFCounter
                 }
             }
 
-            foreach (var p in processedFiles
-                .OrderBy(f => f.Filename, new NaturalStringComparer())
-                .SelectMany(f => f.Pages))
-            {
-                string filename = p.PageNumber == 1 ? Path.GetFileName(p.ParentFile.Filename) : "";
-                string pageNumber = p.PageNumber.ToString();
-                string pageColor = p.ColorMode.ToString();
-                string pageSize = string.Format("{0:F2} \u00d7 {1:F2}", p.Width, p.Height);
-                int rowIndex = dgvFilePages.Rows.Add(filename, pageNumber, pageColor, pageSize);
-                dgvFilePages.Rows[rowIndex].Tag = p;
-            }
-
+            Grid_FilePages_Populate(AcceptedFiles);
             DoPageSizeCount();
         }
-        
+
+        void Grid_FilePages_Populate(List<TPCFile> files)
+        {
+            try
+            {
+                Cursor = Cursors.WaitCursor;
+                System.Diagnostics.Debug.Print($"{DateTime.Now} Initializing DataTable");
+                DataTable dt = Grid_FilePages_GetNewDataTable();
+
+                System.Diagnostics.Debug.Print($"{DateTime.Now} Generating rows");
+                foreach (var page in files
+                    .OrderBy(f => f.Filename, new NaturalStringComparer())
+                    .SelectMany(f => f.Pages))
+                {
+                    string filename = page.PageNumber == 1 ? Path.GetFileName(page.ParentFile.Filename) : "";
+                    string pageNumber = page.PageNumber.ToString();
+                    string pageColor = page.ColorMode.ToString();
+                    string pageSize = string.Format("{0:F2} \u00d7 {1:F2}", page.Width, page.Height);
+                    dt.Rows.Add(filename, pageNumber, pageColor, pageSize, page);
+                }
+
+                System.Diagnostics.Debug.Print($"{DateTime.Now} Adding rows to grid");
+                dgvFilePages.DataSource = dt;
+                System.Diagnostics.Debug.Print($"{DateTime.Now} Finished adding rows to grid");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"An unexpected error occurred while attempting to display results.\r\n\r\n{ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                Cursor = Cursors.Default;
+            }
+        }
+
+        private void Grid_FilePages_Initialize()
+        {
+            dgvFilePages.DataSource = Grid_FilePages_GetNewDataTable();
+            dgvFilePages.Columns["Filename"].ReadOnly = true;
+            dgvFilePages.Columns["Page"].ReadOnly = true;
+            dgvFilePages.Columns["Color"].ReadOnly = true;
+            dgvFilePages.Columns["Size"].ReadOnly = true;
+            dgvFilePages.Columns["Filename"].SortMode = DataGridViewColumnSortMode.NotSortable;
+            dgvFilePages.Columns["Page"].SortMode = DataGridViewColumnSortMode.NotSortable;
+            dgvFilePages.Columns["Color"].SortMode = DataGridViewColumnSortMode.NotSortable;
+            dgvFilePages.Columns["Size"].SortMode = DataGridViewColumnSortMode.NotSortable;
+            dgvFilePages.Columns["Page"].FillWeight = 25F;
+            dgvFilePages.Columns["Color"].FillWeight = 25F;
+            dgvFilePages.Columns["Size"].FillWeight = 50F;
+            dgvFilePages.Columns["Object"].Visible = false;
+        }
+
+        private static DataTable Grid_FilePages_GetNewDataTable()
+        {
+            var dt = new DataTable();
+            dt.Columns.Add("Filename", typeof(string));
+            dt.Columns.Add("Page", typeof(string));
+            dt.Columns.Add("Color", typeof(string));
+            dt.Columns.Add("Size", typeof(string));
+            dt.Columns.Add("Object", typeof(TPCFilePage));
+            return dt;
+        }
+
+        private void Grid_FilePages_SelectAllRowsOfType(List<TPCFilePage> tagsToSelect)
+        {
+            try
+            {
+                Cursor = Cursors.WaitCursor;
+                dgvFilePages.SelectionChanged -= dgvFilePages_SelectionChanged;
+                dgvFilePages.SuspendLayout();
+                foreach (DataGridViewRow row in dgvFilePages.Rows)
+                {
+                    row.Selected = row.Cells["Object"].Value is TPCFilePage fp && tagsToSelect.Contains(fp);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"An unexpected error occurred while attempting to update the display.\r\n\r\n{ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                dgvFilePages.ResumeLayout();
+                dgvFilePages.SelectionChanged += dgvFilePages_SelectionChanged;
+                dgvFilePages_SelectionChanged(dgvFilePages, EventArgs.Empty);
+                Cursor = Cursors.Default;
+            }
+        }
+
         void DoPageSizeCount()
         {
             dgvCounters.Rows.Clear();
@@ -172,7 +248,7 @@ namespace TIFPDFCounter
                 var page = pagesToCompare.Dequeue();
                 var match = activePageSizes.First(aps => aps.IsMatch(page));
             }
-            
+
             foreach (var aps in activePageSizes)
             {
                 if (aps.BlackPages.Count > 0)
@@ -193,6 +269,7 @@ namespace TIFPDFCounter
             }
 
             lblTotalFiles.Text = "Total Files: " + AcceptedFiles.Count.ToString();
+            lblTotalBookmarks.Text = "Total Bookmarks: " + AcceptedFiles.Sum(af => af.BookmarkCount).ToString();
             lblTotalPages.Text = "Total Pages: " + AcceptedFiles.Sum(af => af.PageCount).ToString();
         }
 
@@ -215,7 +292,7 @@ namespace TIFPDFCounter
             WindowState = Settings.Current.WindowState;
             if (WindowState == FormWindowState.Minimized)
                 WindowState = FormWindowState.Normal;
-            
+
             if (Settings.Current.CheckForProgramUpdates)
                 await CheckForProgramUpdates();
         }
@@ -273,14 +350,15 @@ namespace TIFPDFCounter
             Debug.Print("LatestVersion=" + latestVersion + " CurrentVersion=" + currentVersion);
             var cvSplit = currentVersion.Split('.');
             var lvSplit = latestVersion.Split('.');
-            for (int i = 0; i < cvSplit.Length && i < lvSplit.Length; i++)
+            for (int i = 0; i < 4; i++)
             {
-                int cv = Convert.ToInt32(cvSplit[i]);
-                int lv = Convert.ToInt32(lvSplit[i]);
-                if (lv > cv)
-                {
-                    return true;
-                }
+                int cv = i > cvSplit.Length - 1 ? 0 : Convert.ToInt32(cvSplit[i]);
+                int lv = i > lvSplit.Length - 1 ? 0 : Convert.ToInt32(lvSplit[i]);
+
+                if (lv == cv)
+                    continue;
+
+                return lv > cv;
             }
 
             return false;
@@ -302,9 +380,10 @@ namespace TIFPDFCounter
         void BtnClearListClick(object sender, EventArgs e)
         {
             lblTotalPages.Text = "Total Pages: 0";
+            lblTotalBookmarks.Text = "Total Bookmarks: 0";
             lblTotalFiles.Text = "Total Files: 0";
             lblSelected.Text = "Selected: 0";
-            dgvFilePages.Rows.Clear();
+            Grid_FilePages_Initialize();
             dgvCounters.Rows.Clear();
             AcceptedFiles.Clear();
         }
@@ -317,12 +396,7 @@ namespace TIFPDFCounter
                 .SelectMany(dgvr => dgvr.Tag as List<TPCFilePage>)
                 .ToList();
 
-            dgvFilePages.ClearSelection();
-
-            dgvFilePages.Rows
-                .Cast<DataGridViewRow>()
-                .Where(dgvr => tagsToSelect.Contains(dgvr.Tag as TPCFilePage)).ToList()
-                .ForEach(dgvr => dgvr.Selected = true);
+            Grid_FilePages_SelectAllRowsOfType(tagsToSelect);
         }
 
         void DgvCountersMouseDown(object sender, MouseEventArgs e)
