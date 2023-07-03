@@ -350,14 +350,15 @@ namespace TIFPDFCounter
             Debug.Print("LatestVersion=" + latestVersion + " CurrentVersion=" + currentVersion);
             var cvSplit = currentVersion.Split('.');
             var lvSplit = latestVersion.Split('.');
-            for (int i = 0; i < cvSplit.Length && i < lvSplit.Length; i++)
+            for (int i = 0; i < 4; i++)
             {
-                int cv = Convert.ToInt32(cvSplit[i]);
-                int lv = Convert.ToInt32(lvSplit[i]);
-                if (lv > cv)
-                {
-                    return true;
-                }
+                int cv = i > cvSplit.Length - 1 ? 0 : Convert.ToInt32(cvSplit[i]);
+                int lv = i > lvSplit.Length - 1 ? 0 : Convert.ToInt32(lvSplit[i]);
+
+                if (lv == cv)
+                    continue;
+
+                return lv > cv;
             }
 
             return false;
