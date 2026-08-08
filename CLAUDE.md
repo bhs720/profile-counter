@@ -9,19 +9,23 @@ ProFile Counter (internal namespace `TIFPDFCounter`) is a Windows desktop app fo
 It is two separate projects glued together by a subprocess boundary:
 
 - **`app/gui`** — a C# WinForms app (`ProFile Counter.csproj`, .NET Framework 4.8, target `TIFPDFCounter` namespace). This is the UI and orchestration layer.
-- **`app/pfc-tool`** — a native C/C++ console EXE (`mupdf.vcxproj`) built against the vendored MuPDF library headers in `app/pfc-tool/include/mupdf`. It does the actual PDF parsing/rendering and prints results as plain text to stdout.
+- **`app/pfc-tool`** — a native C/C++ console EXE (`mupdf.vcxproj`) that links against MuPDF, built from source out of the `app/pfc-tool/mupdf` git submodule (pinned to tag `1.28.2`, vendored from [ArtifexSoftware/mupdf](https://github.com/ArtifexSoftware/mupdf)). It does the actual PDF parsing/rendering and prints results as plain text to stdout.
 
 The C# app never links against MuPDF directly — it shells out to `mupdf.exe` as a child process per file and parses its stdout line-by-line. Understanding that protocol is essential before touching either side.
 
 ## Build
 
-Requires Visual Studio 2017+ (or matching MSBuild) with the C++ desktop workload (`PlatformToolset` v141) and .NET Framework 4.8 targeting pack. Open `app/app.sln` — it contains both the C# app and the native `mupdf` project, with the app project depending on `mupdf` so a full solution build produces both binaries in the same output directory.
+Requires Visual Studio 2019+ (or matching MSBuild) with the C++ desktop workload (`PlatformToolset` v142, matching what the mupdf submodule's own `platform/win32` projects target) and .NET Framework 4.8 targeting pack.
+
+Clone with submodules, or run `git submodule update --init --recursive` after cloning — `app/pfc-tool/mupdf` and its own nested thirdparty submodules (freetype, harfbuzz, tesseract, etc.) must be checked out before building.
+
+Open `app/app.sln` — it contains the C# app and the native `pfc-tool` project, with the app project depending on `pfc-tool`. Building `pfc-tool` triggers a `PreBuildEvent` that invokes the submodule's own `mupdf/platform/win32/mupdf.sln` to build `libmupdf` from source (matching `$(Configuration)`/`$(Platform)`), then `pfc-tool` links against the resulting `libmupdf.lib`. This nested-build approach (rather than folding mupdf's project graph directly into `app.sln`) exists because mupdf's own build scripts (e.g. `bin2coff`'s font-embedding step) hardcode paths relative to `$(SolutionDir)` assuming `mupdf.sln` itself is the entry point — nesting the invocation keeps those assumptions intact instead of relying on `ProjectReference`-based inclusion.
 
 ```
 msbuild app\app.sln /p:Configuration=Release /p:Platform=x64
 ```
 
-Output lands in `app\x64\Release\` (or `app\x64\Debug\`) containing `ProFile Counter.exe`, `mupdf.exe`, and `Newtonsoft.Json.dll` side by side — `ProFile Counter.exe` expects `mupdf.exe` in its own working directory (see `FileAnalyzer.cs`, which invokes `mupdf.exe` as a bare relative filename).
+Output lands in `app\x64\Release\` (or `app\x64\Debug\`) containing `ProFile Counter.exe`, `mupdf.exe`, and `Newtonsoft.Json.dll` side by side — `ProFile Counter.exe` expects `mupdf.exe` in its own working directory (see `FileAnalyzer.cs`, which invokes `mupdf.exe` as a bare relative filename). `libmupdf.lib` itself lands under `app\pfc-tool\mupdf\platform\win32\x64\Release\`, per the submodule's own build layout.
 
 There is no automated test suite in this repo.
 

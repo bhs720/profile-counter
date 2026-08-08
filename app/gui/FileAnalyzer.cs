@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -72,7 +73,10 @@ namespace TIFPDFCounter
             process = new Process();
             process.StartInfo.FileName = @"mupdf.exe";
 
-            string args = string.Format("\"{0}\" {1} {2}", filename, (checkColor ? colorThreshold.ToString() : "-1"), (checkPixels ? "1" : "0"));
+            // mupdf.exe parses the threshold with the C locale, so it must be formatted
+            // culture-invariantly -- a comma-decimal culture would otherwise emit "0,25",
+            // which the tool rejects.
+            string args = string.Format(CultureInfo.InvariantCulture, "\"{0}\" {1} {2}", filename, (checkColor ? colorThreshold.ToString(CultureInfo.InvariantCulture) : "-1"), (checkPixels ? "1" : "0"));
             Debug.Print("mupdf.exe {0}", args);
 
             process.StartInfo.Arguments = Encoding.Default.GetString(Encoding.UTF8.GetBytes(args));
