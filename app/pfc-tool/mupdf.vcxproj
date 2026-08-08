@@ -159,8 +159,9 @@
   </ItemGroup>
   <ItemDefinitionGroup Condition="'$(Platform)'=='x64' Or '$(Platform)'=='Win32'">
     <PreBuildEvent>
-      <Message>Building mupdf (libmupdf) from the vendored submodule</Message>
-      <Command>"$(MSBuildBinPath)\MSBuild.exe" "$(ProjectDir)mupdf\platform\win32\mupdf.sln" /t:libmupdf /p:Configuration=$(Configuration) /p:Platform=$(Platform) /p:PlatformToolset=$(PlatformToolset) /nologo /v:minimal</Command>
+      <Message>Patching and building mupdf (libmupdf) from the vendored submodule</Message>
+      <Command>call "$(ProjectDir)patches\apply-patches.cmd" || exit /b 1
+"$(MSBuildBinPath)\MSBuild.exe" "$(ProjectDir)mupdf\platform\win32\mupdf.sln" /t:libmupdf /p:Configuration=$(Configuration) /p:Platform=$(Platform) /p:PlatformToolset=$(PlatformToolset) /nologo /v:minimal</Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

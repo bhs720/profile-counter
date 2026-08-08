@@ -1,0 +1,74 @@
+Fix colour sampling of images in the test device
+
+Carried locally against mupdf 1.28.2. Not submitted upstream.
+
+Two defects in the image sampling paths of fz_test_fill_compressed_8bpc_image()
+and fz_test_fill_other_image() made colour detection read uninitialised memory,
+so the same binary over the same file returned different Color= results between
+runs. For ProFile Counter that meant a page could be classified black-and-white
+or colour at random.
+
+1. The colour converter is declared as
+
+       void (*convert)(fz_context *, fz_color_converter *, const float *src, float *dst)
+
+   and every other caller in the library passes (src, dst). Both call sites here
+   pass (dst, src): the uninitialised ds[] is handed over as the source, the
+   converted result is written into cs[] (which held the real pixel data), and
+   the code then tests ds[], which is still uninitialised stack memory. Pass the
+   arrays in the declared order.
+
+2. fz_test_fill_other_image() computes the per-pixel component count as
+   pix->n - 1, unconditionally assuming an alpha channel. For a pixmap without
+   alpha the count becomes 0, so the sampling loop never reads the pixmap and
+   leaves cs[] unwritten. Subtract the alpha channel only when there is one, and
+   bail out rather than sample if a pixmap reports no colour components at all.
+
+Defect 1 is the one that affects ordinary ICC and Flate encoded images and is a
+regression against the 1.6 series this project previously used, which was
+deterministic on the same files.
+
+To refresh after a mupdf version bump: apply by hand, adjust, then regenerate
+with `git diff -- source/fitz/test-device.c` from within the submodule.
+
+diff --git a/source/fitz/test-device.c b/source/fitz/test-device.c
+index 7a82d34c5..9bc4c0d7b 100644
+--- a/source/fitz/test-device.c
++++ b/source/fitz/test-device.c
+@@ -229,7 +229,7 @@ static void fz_test_fill_compressed_8bpc_image(fz_context *ctx, fz_test_device *
+ 				for (k = 0; k < n; k++)
+ 					cs[k] = fz_read_byte(ctx, stream) / 255.0f;
+ 
+-				cc.convert(ctx, &cc, ds, cs);
++				cc.convert(ctx, &cc, cs, ds);
+ 
+ 				if (is_rgb_color(dev->threshold, ds[0], ds[1], ds[2]))
+ 				{
+@@ -284,7 +284,17 @@ fz_test_fill_other_image(fz_context *ctx, fz_test_device *dev, fz_pixmap *pix, f
+ 	else
+ 	{
+ 		fz_color_converter cc;
+-		unsigned int n = (unsigned int)pix->n-1;
++		unsigned int n = (unsigned int)pix->n - sa;
++
++		/* A pixmap without an alpha channel has no component to subtract, and
++		 * the sampling loop below reads exactly n components per pixel. If n
++		 * were left at zero the loop would never read the pixmap at all and
++		 * the converter would be handed uninitialised stack memory. */
++		if (n == 0)
++		{
++			fz_warn(ctx, "image has no colour components; skipping colour analysis");
++			return;
++		}
+ 
+ 		fz_init_cached_color_converter(ctx, &cc, pix->colorspace, fz_device_rgb(ctx), NULL, NULL, color_params);
+ 
+@@ -302,7 +312,7 @@ fz_test_fill_other_image(fz_context *ctx, fz_test_device *dev, fz_pixmap *pix, f
+ 					if (sa && *s++ == 0)
+ 						continue;
+ 
+-					cc.convert(ctx, &cc, ds, cs);
++					cc.convert(ctx, &cc, cs, ds);
+ 
+ 					if (is_rgb_color(dev->threshold, ds[0], ds[1], ds[2]))
+ 					{
