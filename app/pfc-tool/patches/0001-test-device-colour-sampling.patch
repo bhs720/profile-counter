@@ -2,11 +2,11 @@ Fix colour sampling of images in the test device
 
 Carried locally against mupdf 1.28.2. Not submitted upstream.
 
-Two defects in the image sampling paths of fz_test_fill_compressed_8bpc_image()
-and fz_test_fill_other_image() made colour detection read uninitialised memory,
-so the same binary over the same file returned different Color= results between
-runs. For ProFile Counter that meant a page could be classified black-and-white
-or colour at random.
+Three defects in the image sampling paths of fz_test_fill_image(),
+fz_test_fill_compressed_8bpc_image() and fz_test_fill_other_image() made colour
+detection read uninitialised memory or undecoded data. For ProFile Counter that
+meant a page could be classified black-and-white or colour at random between
+runs, and greyscale JPEG 2000 scans were always reported as colour.
 
 1. The colour converter is declared as
 
@@ -24,15 +24,34 @@ or colour at random.
    leaves cs[] unwritten. Subtract the alpha channel only when there is one, and
    bail out rather than sample if a pixmap reports no colour components at all.
 
+3. fz_test_fill_image() takes a fast path that samples the image's compressed
+   buffer directly, but fz_open_compressed_buffer() only decodes the sample
+   oriented compressions. The "full image formats" -- JPX, PNG, TIFF, BMP, GIF,
+   PNM, PSD, JXR -- fall through the switch in fz_open_image_decomp_stream() and
+   are returned still encoded, so the sampling loop reads compressed bytes as if
+   they were 8-bit pixels.
+
+   For a JPX image this is deterministic and unavoidable: offset 3 of the JP2
+   signature box is 0C 6A 50, a channel spread of 94, so detection trips on the
+   ASCII "jP" of the file's magic number at the second pixel, before anything
+   has been decoded. No threshold below 1 avoids it, because entropy coded data
+   always contains a triplet exceeding any smaller value. Of the image filters
+   PDF can carry, only JPXDecode reaches this path; a greyscale JPX scan
+   declared as DeviceRGB was reported as colour on every run. Restrict the fast
+   path to the compressions that really do decode to samples and let everything
+   else go through fz_get_pixmap_from_image(), which decodes properly.
+
 Defect 1 is the one that affects ordinary ICC and Flate encoded images and is a
 regression against the 1.6 series this project previously used, which was
-deterministic on the same files.
+deterministic on the same files. Defect 3 is independent of the other two: it
+lives in the fz_device_rgb branch, which uses is_rgb_color_u8() and no colour
+converter at all.
 
 To refresh after a mupdf version bump: apply by hand, adjust, then regenerate
 with `git diff -- source/fitz/test-device.c` from within the submodule.
 
 diff --git a/source/fitz/test-device.c b/source/fitz/test-device.c
-index 7a82d34c5..9bc4c0d7b 100644
+index 7a82d34c5..891a2de6f 100644
 --- a/source/fitz/test-device.c
 +++ b/source/fitz/test-device.c
 @@ -229,7 +229,7 @@ static void fz_test_fill_compressed_8bpc_image(fz_context *ctx, fz_test_device *
@@ -72,3 +91,46 @@ index 7a82d34c5..9bc4c0d7b 100644
  
  					if (is_rgb_color(dev->threshold, ds[0], ds[1], ds[2]))
  					{
+@@ -324,6 +334,33 @@ fz_test_fill_other_image(fz_context *ctx, fz_test_device *dev, fz_pixmap *pix, f
+ }
+ 
+ 
++/* fz_open_compressed_buffer() only decodes the sample oriented compressions.
++ * The "full image formats" fall through the switch in
++ * fz_open_image_decomp_stream() and are handed back still encoded, so sampling
++ * that stream reads compressed bytes as if they were pixels. A JPX image trips
++ * colour detection on the ASCII "jP" of its JP2 signature box -- offset 3 of
++ * every JP2 file is 0C 6A 50, a channel spread of 94 -- before a single pixel
++ * has been decoded, and no threshold below 1 can avoid it because entropy coded
++ * data is effectively random. Decode a pixmap for those instead. */
++static int
++fz_test_compression_decodes_to_samples(int type)
++{
++	switch (type)
++	{
++	case FZ_IMAGE_RAW:
++	case FZ_IMAGE_FAX:
++	case FZ_IMAGE_FLATE:
++	case FZ_IMAGE_LZW:
++	case FZ_IMAGE_RLD:
++	case FZ_IMAGE_BROTLI:
++	case FZ_IMAGE_JPEG:
++	case FZ_IMAGE_JBIG2:
++		return 1;
++	default:
++		return 0;
++	}
++}
++
+ static void
+ fz_test_fill_image(fz_context *ctx, fz_device *dev_, fz_image *image, fz_matrix ctm, float alpha, fz_color_params color_params)
+ {
+@@ -348,7 +385,7 @@ fz_test_fill_image(fz_context *ctx, fz_device *dev_, fz_image *image, fz_matrix
+ 		}
+ 
+ 		buffer = fz_compressed_image_buffer(ctx, image);
+-		if (buffer && image->bpc == 8)
++		if (buffer && image->bpc == 8 && fz_test_compression_decodes_to_samples(buffer->params.type))
+ 		{
+ 			fz_stream *stream = fz_open_compressed_buffer(ctx, buffer);
+ 			fz_try(ctx)
