@@ -43,6 +43,7 @@ namespace TIFPDFCounter
 		/// </summary>
 		private void InitializeComponent()
 		{
+            this.components = new System.ComponentModel.Container();
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(SettingsWindow));
             this.btnOK = new System.Windows.Forms.Button();
             this.btnCancel = new System.Windows.Forms.Button();
@@ -61,6 +62,7 @@ namespace TIFPDFCounter
             this.lblAppWebSite = new System.Windows.Forms.LinkLabel();
             this.chkDuplicateFiles = new System.Windows.Forms.CheckBox();
             this.chkUpdates = new System.Windows.Forms.CheckBox();
+            this.toolTip1 = new System.Windows.Forms.ToolTip(this.components);
             this.groupBox1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.tbColorSensitivity)).BeginInit();
             this.SuspendLayout();
@@ -119,6 +121,7 @@ namespace TIFPDFCounter
             this.button1.Size = new System.Drawing.Size(54, 22);
             this.button1.TabIndex = 3;
             this.button1.Text = "Default";
+            this.toolTip1.SetToolTip(this.button1, "Reset the color sensitivity to its default value.");
             this.button1.UseVisualStyleBackColor = true;
             this.button1.Click += new System.EventHandler(this.button1_Click);
             // 
@@ -130,6 +133,12 @@ namespace TIFPDFCounter
             this.chkImagePixels.Size = new System.Drawing.Size(123, 17);
             this.chkImagePixels.TabIndex = 0;
             this.chkImagePixels.Text = "Check image pixels";
+            this.toolTip1.SetToolTip(this.chkImagePixels, "Decode the images and gradients on each page and look at\r\n" +
+                    "their actual pixels.\r\n" +
+                    "\r\n" +
+                    "When turned off, an image is judged by its color space alone,\r\n" +
+                    "so a grayscale scan saved as a color image still counts as\r\n" +
+                    "color. Checking pixels is more accurate but slower.");
             this.chkImagePixels.UseVisualStyleBackColor = true;
             // 
             // txtColorSensitivity
@@ -138,6 +147,7 @@ namespace TIFPDFCounter
             this.txtColorSensitivity.Name = "txtColorSensitivity";
             this.txtColorSensitivity.Size = new System.Drawing.Size(27, 22);
             this.txtColorSensitivity.TabIndex = 2;
+            this.toolTip1.SetToolTip(this.txtColorSensitivity, ColorSensitivityToolTip);
             this.txtColorSensitivity.TextChanged += new System.EventHandler(this.txtColorSensitivity_TextChanged);
             // 
             // label4
@@ -148,6 +158,7 @@ namespace TIFPDFCounter
             this.label4.Size = new System.Drawing.Size(32, 13);
             this.label4.TabIndex = 5;
             this.label4.Text = "High";
+            this.toolTip1.SetToolTip(this.label4, ColorSensitivityToolTip);
             // 
             // label3
             // 
@@ -157,6 +168,7 @@ namespace TIFPDFCounter
             this.label3.Size = new System.Drawing.Size(28, 13);
             this.label3.TabIndex = 4;
             this.label3.Text = "Low";
+            this.toolTip1.SetToolTip(this.label3, ColorSensitivityToolTip);
             // 
             // label2
             // 
@@ -166,6 +178,7 @@ namespace TIFPDFCounter
             this.label2.Size = new System.Drawing.Size(92, 13);
             this.label2.TabIndex = 1;
             this.label2.Text = "Color Sensitivity:";
+            this.toolTip1.SetToolTip(this.label2, ColorSensitivityToolTip);
             // 
             // tbColorSensitivity
             // 
@@ -175,6 +188,7 @@ namespace TIFPDFCounter
             this.tbColorSensitivity.Size = new System.Drawing.Size(249, 45);
             this.tbColorSensitivity.TabIndex = 6;
             this.tbColorSensitivity.TickFrequency = 10;
+            this.toolTip1.SetToolTip(this.tbColorSensitivity, ColorSensitivityToolTip);
             this.tbColorSensitivity.Value = 75;
             this.tbColorSensitivity.Scroll += new System.EventHandler(this.tbColorSensitivity_Scroll);
             // 
@@ -186,6 +200,11 @@ namespace TIFPDFCounter
             this.chkColorAnalysis.Size = new System.Drawing.Size(141, 17);
             this.chkColorAnalysis.TabIndex = 0;
             this.chkColorAnalysis.Text = "Perform Color Analysis";
+            this.toolTip1.SetToolTip(this.chkColorAnalysis, "Examine the contents of every page to decide whether it is\r\n" +
+                    "color or black and white.\r\n" +
+                    "\r\n" +
+                    "Turn this off to report page counts and page sizes only,\r\n" +
+                    "which is considerably faster.");
             this.chkColorAnalysis.UseVisualStyleBackColor = true;
             this.chkColorAnalysis.CheckedChanged += new System.EventHandler(this.cbColorAnalysis_CheckedChanged);
             // 
@@ -225,6 +244,8 @@ namespace TIFPDFCounter
             this.chkDuplicateFiles.Size = new System.Drawing.Size(150, 17);
             this.chkDuplicateFiles.TabIndex = 2;
             this.chkDuplicateFiles.Text = "Check for duplicate files";
+            this.toolTip1.SetToolTip(this.chkDuplicateFiles, "After the files have been processed, list any whose contents\r\n" +
+                    "are byte-for-byte identical, even if they are named differently.");
             this.chkDuplicateFiles.UseVisualStyleBackColor = true;
             // 
             // chkUpdates
@@ -235,10 +256,19 @@ namespace TIFPDFCounter
             this.chkUpdates.Size = new System.Drawing.Size(177, 17);
             this.chkUpdates.TabIndex = 3;
             this.chkUpdates.Text = "Check for updates on startup";
+            this.toolTip1.SetToolTip(this.chkUpdates, "When ProFile Counter starts, ask its web site whether a newer\r\n" +
+                    "version is available. Nothing is downloaded or installed\r\n" +
+                    "automatically.");
             this.chkUpdates.UseVisualStyleBackColor = true;
-            // 
+            //
+            // toolTip1
+            //
+            this.toolTip1.AutoPopDelay = 20000;
+            this.toolTip1.InitialDelay = 500;
+            this.toolTip1.ReshowDelay = 100;
+            //
             // SettingsWindow
-            // 
+            //
             this.AcceptButton = this.btnOK;
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
@@ -284,5 +314,18 @@ namespace TIFPDFCounter
         private System.Windows.Forms.CheckBox chkUpdates;
         private System.Windows.Forms.CheckBox chkImagePixels;
         private System.Windows.Forms.Button button1;
+        private System.Windows.Forms.ToolTip toolTip1;
+
+        /// <summary>
+        /// Shared by every control making up the color sensitivity setting, so that
+        /// hovering the label, the box, the slider or its end labels all explain it.
+        /// </summary>
+        private const string ColorSensitivityToolTip =
+            "How far from gray a color has to be before the page counts as\r\n" +
+            "color.\r\n" +
+            "\r\n" +
+            "High: even faint tints count as color, including scanner noise\r\n" +
+            "and JPEG artifacts on otherwise black and white pages.\r\n" +
+            "Low: only strong, obvious color counts.";
     }
 }
