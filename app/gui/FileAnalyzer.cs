@@ -7,7 +7,7 @@ using System.Text.RegularExpressions;
 namespace TIFPDFCounter
 {
     /// <summary>
-    /// Reads the stdout of mupdf.exe and provides a <see cref="Result"/>
+    /// Reads the stdout of pfc-tool.exe and provides a <see cref="Result"/>
     /// </summary>
     public class FileAnalyzer
     {
@@ -71,13 +71,13 @@ namespace TIFPDFCounter
             Filename = filename;
             Errors = new StringBuilder();
             process = new Process();
-            process.StartInfo.FileName = @"mupdf.exe";
+            process.StartInfo.FileName = @"pfc-tool.exe";
 
-            // mupdf.exe parses the threshold with the C locale, so it must be formatted
+            // pfc-tool.exe parses the threshold with the C locale, so it must be formatted
             // culture-invariantly -- a comma-decimal culture would otherwise emit "0,25",
             // which the tool rejects.
             string args = string.Format(CultureInfo.InvariantCulture, "\"{0}\" {1} {2}", filename, (checkColor ? colorThreshold.ToString(CultureInfo.InvariantCulture) : "-1"), (checkPixels ? "1" : "0"));
-            Debug.Print("mupdf.exe {0}", args);
+            Debug.Print("pfc-tool.exe {0}", args);
 
             process.StartInfo.Arguments = Encoding.Default.GetString(Encoding.UTF8.GetBytes(args));
             process.StartInfo.CreateNoWindow = true;

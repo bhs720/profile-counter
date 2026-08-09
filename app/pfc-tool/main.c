@@ -1,10 +1,89 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "mupdf/fitz.h"
+
+/* Registered individually instead of via fz_register_document_handlers().
+ * ProFile Counter only reports counts for formats where page count and page
+ * dimensions are properties of the file itself.
+ *
+ * The reflowable formats (txt, html, xhtml, md, epub, mobi, fb2) and the Office
+ * formats carry no intrinsic pagination: mupdf converts them to HTML and flows
+ * the result onto FZ_DEFAULT_LAYOUT_W/H, a 420x595pt A5 canvas. A spreadsheet
+ * reports A5 pages, and so does a landscape PowerPoint deck -- the numbers
+ * describe mupdf's default layout, not the document, and they would land in the
+ * page-size buckets as a size nobody printed. cbz turns the image entries of an
+ * archive into "pages" for the same reason.
+ *
+ * img covers TIFF/JPEG/PNG/BMP and must stay: those are analysed deliberately. */
+extern fz_document_handler pdf_document_handler;
+extern fz_document_handler img_document_handler;
 
 /* Corrupt or hostile documents can nest outlines arbitrarily deeply; cap the
  * recursion since a stack overflow can't be caught via fz_try. */
 #define MAX_OUTLINE_DEPTH 512
+
+/* Enough to reach TAR's "ustar" magic, which sits at offset 257. */
+#define ARCHIVE_PROBE_BYTES 262
+
+static int magic_at(const unsigned char *buf, size_t n, size_t off, const unsigned char *sig, size_t len)
+{
+	return n >= off + len && memcmp(buf + off, sig, len) == 0;
+}
+
+/* Identify archive containers by magic number, returning a display name or NULL.
+ *
+ * Unregistering the archive handlers is not enough on its own: mupdf's PDF
+ * repair scans a file for a %PDF marker and rebuilds a document from whatever
+ * it finds, so a .zip holding PDFs is reported as a document with the page count
+ * of the first one inside. The PDF handler cannot be dropped, so the container
+ * has to be recognised before fz_open_document ever sees the file.
+ *
+ * Deliberately a blocklist rather than an allowlist of known-good headers:
+ * genuinely damaged PDFs may carry garbage before their %PDF marker and mupdf
+ * repairs them successfully, which is behaviour worth keeping. */
+static const char *archive_kind(const char *filename)
+{
+	static const unsigned char zip_local[]  = { 0x50, 0x4B, 0x03, 0x04 };
+	static const unsigned char zip_empty[]  = { 0x50, 0x4B, 0x05, 0x06 };
+	static const unsigned char zip_spare[]  = { 0x50, 0x4B, 0x07, 0x08 };
+	static const unsigned char sevenzip[]   = { 0x37, 0x7A, 0xBC, 0xAF, 0x27, 0x1C };
+	static const unsigned char rar[]        = { 0x52, 0x61, 0x72, 0x21, 0x1A, 0x07 };
+	static const unsigned char gzip[]       = { 0x1F, 0x8B };
+	static const unsigned char bzip2[]      = { 0x42, 0x5A, 0x68 };
+	static const unsigned char xz[]         = { 0xFD, 0x37, 0x7A, 0x58, 0x5A, 0x00 };
+	static const unsigned char tar_ustar[]  = { 0x75, 0x73, 0x74, 0x61, 0x72 };
+
+	unsigned char buf[ARCHIVE_PROBE_BYTES];
+	size_t n;
+	FILE *f;
+
+	f = fopen(filename, "rb");
+	if (f == NULL)
+		return NULL; /* Let fz_open_document report the real problem. */
+
+	n = fread(buf, 1, sizeof buf, f);
+	fclose(f);
+
+	if (magic_at(buf, n, 0, zip_local, sizeof zip_local) ||
+		magic_at(buf, n, 0, zip_empty, sizeof zip_empty) ||
+		magic_at(buf, n, 0, zip_spare, sizeof zip_spare))
+		return "ZIP"; /* also catches docx/xlsx/pptx/epub, which are ZIP containers */
+	if (magic_at(buf, n, 0, sevenzip, sizeof sevenzip))
+		return "7-Zip";
+	if (magic_at(buf, n, 0, rar, sizeof rar))
+		return "RAR";
+	if (magic_at(buf, n, 0, gzip, sizeof gzip))
+		return "gzip";
+	if (magic_at(buf, n, 0, bzip2, sizeof bzip2))
+		return "bzip2";
+	if (magic_at(buf, n, 0, xz, sizeof xz))
+		return "xz";
+	if (magic_at(buf, n, 257, tar_ustar, sizeof tar_ustar))
+		return "TAR";
+
+	return NULL;
+}
 
 static int count_bookmarks(fz_outline* outline, int depth)
 {
@@ -58,7 +137,7 @@ int main(int argc, char **argv)
 
 	if (argc < 2)
 	{
-		fprintf(stderr, "usage: mupdf.exe \"<filename>\" [<colorThreshold 0-1|-1>] [<checkPixels 0|1>]\n");
+		fprintf(stderr, "usage: pfc-tool.exe \"<filename>\" [<colorThreshold 0-1|-1>] [<checkPixels 0|1>]\n");
 		return 1;
 	}
 	filename = argv[1];
@@ -96,6 +175,16 @@ int main(int argc, char **argv)
 
 	test_options = test_pixels ? FZ_TEST_OPT_IMAGES | FZ_TEST_OPT_SHADINGS : 0;
 
+	/* Refuse archives before mupdf can mine them for embedded PDF data. */
+	{
+		const char *kind = archive_kind(filename);
+		if (kind != NULL)
+		{
+			fprintf(stderr, "Refusing %s archive: not a document\n", kind);
+			return 1;
+		}
+	}
+
 	ctx = fz_new_context(NULL, NULL, FZ_STORE_DEFAULT);
 	if (ctx == NULL)
 	{
@@ -107,7 +196,8 @@ int main(int argc, char **argv)
 
 	fz_try(ctx)
 	{
-		fz_register_document_handlers(ctx);
+		fz_register_document_handler(ctx, &pdf_document_handler);
+		fz_register_document_handler(ctx, &img_document_handler);
 		doc = fz_open_document(ctx, filename);
 
 		if (fz_needs_password(ctx, doc))
@@ -117,7 +207,12 @@ int main(int argc, char **argv)
 	}
 	fz_catch(ctx)
 	{
-		fprintf(stderr, "Failed to open document: %s\n", fz_caught_message(ctx));
+		/* fz_catch does not clear the error state; the handler must resolve it
+		 * with fz_report_error, fz_ignore_error or fz_rethrow. Reading the
+		 * message alone leaves errcode set, and fz_drop_context would then
+		 * report a spurious "UNHANDLED EXCEPTION!". */
+		fz_report_error(ctx);
+		fprintf(stderr, "Failed to open document\n");
 		fz_drop_document(ctx, doc);
 		fz_drop_context(ctx);
 		return 1;
@@ -147,7 +242,11 @@ int main(int argc, char **argv)
 		}
 		fz_catch(ctx)
 		{
-			fprintf(stderr, "Failed to load document outline: %s\n", fz_caught_message(ctx));
+			/* Must clear the error state here too: this path continues on to
+			 * the page loop, and a lingering errcode makes every later throw
+			 * inside mupdf emit "UNHANDLED EXCEPTION!" as well. */
+			fz_report_error(ctx);
+			fprintf(stderr, "Failed to load document outline\n");
 			bookmarkcount = 0;
 		}
 	}
@@ -189,7 +288,10 @@ int main(int argc, char **argv)
 		}
 		fz_catch(ctx)
 		{
-			fprintf(stderr, "Page %i failed: %s\n", (i + 1), fz_caught_message(ctx));
+			/* Same again: the loop continues to the next page, so the error
+			 * state must not be left set behind us. */
+			fz_report_error(ctx);
+			fprintf(stderr, "Page %i failed\n", (i + 1));
 			is_color = -1;
 		}
 

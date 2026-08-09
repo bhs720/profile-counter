@@ -8,7 +8,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ProFile Counter", "gui\ProF
 		{504BC5FF-3E8C-4926-BB5B-FB22079CE6DF} = {504BC5FF-3E8C-4926-BB5B-FB22079CE6DF}
 	EndProjectSection
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "mupdf", "pfc-tool\mupdf.vcxproj", "{504BC5FF-3E8C-4926-BB5B-FB22079CE6DF}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "pfc-tool", "pfc-tool\pfc-tool.vcxproj", "{504BC5FF-3E8C-4926-BB5B-FB22079CE6DF}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

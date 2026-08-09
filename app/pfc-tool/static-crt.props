@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Forces the static C runtime (/MT, /MTd) across the nested mupdf build.
+
+  mupdf's own projects hardcode MultiThreadedDLL, which would make pfc-tool.exe
+  depend on MSVCP140.dll and VCRUNTIME140.dll and require end users to install a
+  Visual C++ redistributable. ProFile Counter ships pfc-tool.exe as a bare file
+  next to the GUI, so the tool must be self-contained.
+
+  This is injected into every C++ project in mupdf.sln via
+  /p:ForceImportAfterCppTargets, which is imported after Microsoft.Cpp.targets;
+  the ItemDefinitionGroup below therefore overrides each project's own setting
+  without editing the submodule. pfc-tool.vcxproj sets the same values directly,
+  so libmupdf.lib and pfc-tool.exe always agree on the runtime.
+-->
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
+    <ClCompile>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'!='Debug'">
+    <ClCompile>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+    </ClCompile>
+  </ItemDefinitionGroup>
+</Project>

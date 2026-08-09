@@ -37,7 +37,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 Source: "..\app\x64\Release\ProFile Counter.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\app\x64\Release\mupdf.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\app\x64\Release\pfc-tool.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\app\x64\Release\Newtonsoft.Json.dll"; DestDir: "{app}"; Flags: ignoreversion
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 Source: "..\app\gui\tpcIcon.ico"; DestDir: "{app}"
@@ -49,7 +49,12 @@ Name: "{commondesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Flags: nowait postinstall skipifsilent; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"
 
-;[InstallDelete]
+[InstallDelete]
+; Up to 3.3 the analyzer shipped as mupdf.exe. It was renamed to pfc-tool.exe,
+; so an upgrade would otherwise strand the old 36 MB binary in {app} — and leave
+; a second, older analyzer sitting next to the current one.
+Type: files; Name: "{app}\mupdf.exe"
+
 ;Type: files; Name: "{localappdata}/ProFile Counter/UserSettings.xml"
 
 [UninstallDelete]

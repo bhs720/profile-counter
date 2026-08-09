@@ -21,7 +21,7 @@
   <PropertyGroup Label="Globals">
     <ProjectGuid>{504BC5FF-3E8C-4926-BB5B-FB22079CE6DF}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
-    <RootNamespace>mupdf</RootNamespace>
+    <RootNamespace>pfctool</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -67,6 +67,12 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <!-- The executable is pfc-tool.exe, not mupdf.exe: the mupdf submodule
+         builds its own viewer of that name, and FileAnalyzer.cs launches this
+         one by bare filename from the GUI's working directory. -->
+    <TargetName>pfc-tool</TargetName>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
     <OutDir>$(SolutionDir)\bin\$(Configuration)\</OutDir>
@@ -100,7 +106,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <AdditionalIncludeDirectories>$(UniversalCRT_IncludePath);mupdf\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <WholeProgramOptimization>true</WholeProgramOptimization>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
@@ -122,7 +128,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>mupdf\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -142,7 +148,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <AdditionalIncludeDirectories>mupdf\include;$(UniversalCRT_IncludePath);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
@@ -161,7 +167,7 @@
     <PreBuildEvent>
       <Message>Patching and building mupdf (libmupdf) from the vendored submodule</Message>
       <Command>call "$(ProjectDir)patches\apply-patches.cmd" || exit /b 1
-"$(MSBuildBinPath)\MSBuild.exe" "$(ProjectDir)mupdf\platform\win32\mupdf.sln" /t:libmupdf /p:Configuration=$(Configuration) /p:Platform=$(Platform) /p:PlatformToolset=$(PlatformToolset) /nologo /v:minimal</Command>
+"$(MSBuildBinPath)\MSBuild.exe" "$(ProjectDir)mupdf\platform\win32\mupdf.sln" /t:libmupdf /p:Configuration=$(Configuration) /p:Platform=$(Platform) /p:PlatformToolset=$(PlatformToolset) /p:ForceImportAfterCppTargets="$(ProjectDir)static-crt.props" /nologo /v:minimal</Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
