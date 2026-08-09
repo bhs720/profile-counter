@@ -133,6 +133,7 @@ int main(int argc, char **argv)
 	int test_options;
 	int pagecount = 0;
 	int bookmarkcount = 0;
+	int measured = 0;
 	int i;
 
 	if (argc < 2)
@@ -259,6 +260,7 @@ int main(int argc, char **argv)
 		fz_device *dev = NULL;
 		fz_page *page = NULL;
 		fz_rect bounds = fz_empty_rect;
+		float width, height;
 		int is_color = -1;
 
 		fz_var(dev);
@@ -295,12 +297,35 @@ int main(int argc, char **argv)
 			is_color = -1;
 		}
 
-		fprintf(stdout, "Page=%i Size=%f,%f Color=%i\n", (i + 1), (bounds.x1 - bounds.x0), (bounds.y1 - bounds.y0), is_color);
+		/* Only report a size that was actually measured. fz_empty_rect is an
+		 * inverted sentinel (x0 = FZ_MAX_INF_RECT, x1 = FZ_MIN_INF_RECT), so a
+		 * page that never loaded would otherwise print a width of about -2^32 --
+		 * a negative number that the caller's Size= grammar does not accept, so
+		 * the whole file is rejected as garbled. The >0 tests are written so
+		 * that NaN fails them too. */
+		width = bounds.x1 - bounds.x0;
+		height = bounds.y1 - bounds.y0;
+		if (!(width > 0) || !(height > 0))
+			width = height = 0;
+		else
+			measured++;
+
+		fprintf(stdout, "Page=%i Size=%f,%f Color=%i\n", (i + 1), width, height, is_color);
 		fflush(stdout);
 	}
 
 	fz_drop_document(ctx, doc);
 	fz_drop_context(ctx);
+
+	/* A document that opened but yielded no measurable page is not something the
+	 * caller can count. Report it as a failure rather than as pages of unknown
+	 * size, which would silently inflate the totals. A document with some good
+	 * pages still succeeds; those that failed carry a 0x0 size and Color=-1. */
+	if (measured == 0)
+	{
+		fprintf(stderr, "No page could be measured\n");
+		return 1;
+	}
 
 	return 0;
 }
