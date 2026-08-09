@@ -22,6 +22,38 @@ namespace TIFPDFCounter
             }
         }
 
+        /// <summary>
+        /// Marshals <paramref name="action"/> onto the UI thread without waiting for it.
+        /// <para>
+        /// Use this instead of <see cref="InvokeIfRequired"/> for anything raised from a
+        /// <see cref="FileAnalyzer"/> callback. Those run on thread pool threads, and
+        /// Control.Invoke would block one of them until the UI thread caught up. The UI
+        /// thread does real work per completed file -- removing a grid row, scanning the
+        /// whole grid, and starting the next child process -- so with a full worker pool
+        /// the blocked threads are the very thread pool threads the redirected stream
+        /// readers need in order to deliver their end-of-file callbacks. Completion for
+        /// other files then stalls behind the UI, which is how a perfectly healthy file
+        /// ended up reported as having timed out.
+        /// </para>
+        /// </summary>
+        public static void BeginInvokeIfRequired(Control ctrl, MethodInvoker action)
+        {
+            try
+            {
+                if (ctrl.InvokeRequired)
+                {
+                    ctrl.BeginInvoke(action);
+                }
+                else
+                {
+                    action();
+                }
+            }
+            // Covers ObjectDisposedException too, which derives from this: the window can
+            // be closed between the post and its delivery, and neither case is an error.
+            catch (InvalidOperationException) { }
+        }
+
         public static string BytesToString(long byteCount)
         {
             string[] suffix = { "B", "KB", "MB", "GB", "TB", "PB", "EB" };

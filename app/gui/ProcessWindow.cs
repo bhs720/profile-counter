@@ -86,17 +86,23 @@ namespace TIFPDFCounter
 
         private void Analyzer_ProgressChanged(FileAnalyzer instance, int completed, int total)
         {
-            Utility.InvokeIfRequired(this, () =>
+            Utility.BeginInvokeIfRequired(this, () =>
             {
                 var dgvr = (DataGridViewRow)instance.Tag;
+
+                // Posting rather than blocking means a progress update can arrive after
+                // the file finished and its row was removed. Nothing to draw in that case.
+                if (dgvr.DataGridView == null || total <= 0)
+                    return;
+
                 dgvr.Cells["Progress"].Value = completed * 100 / total;
             });
         }
 
         private void Analyzer_AnalysisComplete(FileAnalyzer instance)
         {
-            Utility.InvokeIfRequired(this, () =>
-            {   
+            Utility.BeginInvokeIfRequired(this, () =>
+            {
                 instance.ProgressChanged -= Analyzer_ProgressChanged;
                 instance.AnalysisComplete -= Analyzer_AnalysisComplete;
                 runningProcesses.Remove(instance);
