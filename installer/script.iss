@@ -2,7 +2,7 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "ProFile Counter"
-#define MyAppVersion "3.3"
+#define MyAppVersion "3.4"
 #define MyAppPublisher "Ben Smith"
 #define MyAppURL "https://bhs720.github.io/profile-counter"
 #define MyAppExeName "ProFile Counter.exe"
