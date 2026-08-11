@@ -96,6 +96,14 @@
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
+      <!-- main.c defines both main and wmain. With both present the linker selects
+           mainCRTStartup, which hands over an argv already flattened to the ANSI
+           code page and so destroys non-ASCII filenames. Name the entry point
+           explicitly rather than relying on that choice. mupdf's own tools get the
+           wide startup as a side effect of linking wsetargv.obj, which would also
+           turn on command line wildcard expansion; that is not wanted here, as the
+           argument is an exact path that may legitimately contain * or ?. -->
+      <EntryPointSymbol>wmainCRTStartup</EntryPointSymbol>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
   </ItemDefinitionGroup>
@@ -113,6 +121,14 @@
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
+      <!-- main.c defines both main and wmain. With both present the linker selects
+           mainCRTStartup, which hands over an argv already flattened to the ANSI
+           code page and so destroys non-ASCII filenames. Name the entry point
+           explicitly rather than relying on that choice. mupdf's own tools get the
+           wide startup as a side effect of linking wsetargv.obj, which would also
+           turn on command line wildcard expansion; that is not wanted here, as the
+           argument is an exact path that may legitimately contain * or ?. -->
+      <EntryPointSymbol>wmainCRTStartup</EntryPointSymbol>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalDependencies>libmupdf.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>mupdf\platform\win32\x64\Debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
@@ -132,6 +148,14 @@
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
+      <!-- main.c defines both main and wmain. With both present the linker selects
+           mainCRTStartup, which hands over an argv already flattened to the ANSI
+           code page and so destroys non-ASCII filenames. Name the entry point
+           explicitly rather than relying on that choice. mupdf's own tools get the
+           wide startup as a side effect of linking wsetargv.obj, which would also
+           turn on command line wildcard expansion; that is not wanted here, as the
+           argument is an exact path that may legitimately contain * or ?. -->
+      <EntryPointSymbol>wmainCRTStartup</EntryPointSymbol>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
@@ -153,6 +177,14 @@
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
+      <!-- main.c defines both main and wmain. With both present the linker selects
+           mainCRTStartup, which hands over an argv already flattened to the ANSI
+           code page and so destroys non-ASCII filenames. Name the entry point
+           explicitly rather than relying on that choice. mupdf's own tools get the
+           wide startup as a side effect of linking wsetargv.obj, which would also
+           turn on command line wildcard expansion; that is not wanted here, as the
+           argument is an exact path that may legitimately contain * or ?. -->
+      <EntryPointSymbol>wmainCRTStartup</EntryPointSymbol>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>

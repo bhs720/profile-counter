@@ -111,10 +111,24 @@ namespace TIFPDFCounter
             string args = string.Format(CultureInfo.InvariantCulture, "\"{0}\" {1} {2}", filename, (checkColor ? colorThreshold.ToString(CultureInfo.InvariantCulture) : "-1"), (checkPixels ? "1" : "0"));
             Debug.Print("pfc-tool.exe {0}", args);
 
-            process.StartInfo.Arguments = Encoding.Default.GetString(Encoding.UTF8.GetBytes(args));
+            // Pass the arguments through unchanged. This used to be re-encoded as
+            // Encoding.Default.GetString(Encoding.UTF8.GetBytes(args)), which corrupted
+            // every non-ASCII filename: .NET hands Arguments to CreateProcessW as UTF-16,
+            // so mangling the string first simply put mojibake on the command line.
+            // pfc-tool.exe now reads the real UTF-16 command line through wmain and
+            // converts it to the UTF-8 that mupdf expects.
+            process.StartInfo.Arguments = args;
             process.StartInfo.CreateNoWindow = true;
             process.StartInfo.RedirectStandardOutput = true;
             process.StartInfo.RedirectStandardError = true;
+
+            // pfc-tool.exe writes UTF-8: filenames reach mupdf as UTF-8 and come back
+            // inside its error text. Decoding that as the ANSI code page turned a
+            // copyright sign in a failing path into "?" in the results grid, which reads
+            // as a second fault rather than as the one being reported.
+            process.StartInfo.StandardOutputEncoding = Encoding.UTF8;
+            process.StartInfo.StandardErrorEncoding = Encoding.UTF8;
+
             process.StartInfo.UseShellExecute = false;
             process.OutputDataReceived += process_OutputDataReceived;
             process.ErrorDataReceived += process_ErrorDataReceived;

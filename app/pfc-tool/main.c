@@ -3,6 +3,11 @@
 #include <string.h>
 #include "mupdf/fitz.h"
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
+
 /* Registered individually instead of via fz_register_document_handlers().
  * ProFile Counter only reports counts for formats where page count and page
  * dimensions are properties of the file itself.
@@ -58,7 +63,11 @@ static const char *archive_kind(const char *filename)
 	size_t n;
 	FILE *f;
 
-	f = fopen(filename, "rb");
+	/* fz_fopen_utf8, not fopen: filename is UTF-8 (see the wmain wrapper at the
+	 * end of this file), and the CRT's fopen would interpret those bytes as the
+	 * ANSI code page. An archive whose name contains non-ASCII characters would
+	 * then fail to open here, return NULL, and slip past the check entirely. */
+	f = (FILE *)fz_fopen_utf8(filename, "rb");
 	if (f == NULL)
 		return NULL; /* Let fz_open_document report the real problem. */
 
@@ -329,3 +338,67 @@ int main(int argc, char **argv)
 
 	return 0;
 }
+
+#ifdef _WIN32
+static UINT entry_console_cp;
+
+static void restore_console_cp(void)
+{
+	if (entry_console_cp != 0)
+		SetConsoleOutputCP(entry_console_cp);
+}
+
+/* Tell the console that what we write is UTF-8.
+ *
+ * Filenames reach mupdf as UTF-8 and come back inside its error text, so
+ * "cannot open <path>" carries UTF-8 bytes. A console left on its OEM code page
+ * renders those as mojibake -- a copyright sign appears as the four characters
+ * of its UTF-8 encoding -- which makes a legible error look like a second bug.
+ *
+ * Only console output is affected; bytes written to a pipe are unchanged, so a
+ * caller redirecting our output still needs to decode it as UTF-8. The previous
+ * code page is restored on exit because it belongs to the user's console window
+ * and outlives this process. Both calls fail harmlessly when there is no console
+ * attached, which is how the GUI runs us. */
+static void use_utf8_console_output(void)
+{
+	UINT cp = GetConsoleOutputCP();
+
+	if (cp == 0 || cp == CP_UTF8)
+		return;
+
+	if (SetConsoleOutputCP(CP_UTF8))
+	{
+		entry_console_cp = cp;
+		atexit(restore_console_cp);
+	}
+}
+#endif
+
+#ifdef _MSC_VER
+/* Take the command line as UTF-16 and hand main() UTF-8.
+ *
+ * A plain main() receives argv already converted to the ANSI code page, so any
+ * character outside it is destroyed before the path reaches mupdf: "test file
+ * with (c) unicode char.pdf" arrived as "test file with ? unicode char.pdf" and
+ * could not be opened, as did filenames using a U+2010 hyphen rather than an
+ * ASCII one. mupdf itself is not the problem -- fz_open_file() expects UTF-8 on
+ * Windows and converts to wide characters internally via _wfopen.
+ *
+ * This is the wrapper mupdf's own tools use (see source/tools/mutool.c), so the
+ * conversion is upstream's rather than hand-rolled. Defining both main and wmain
+ * is deliberate: the linker selects wmainCRTStartup, which is how mutool.exe
+ * opens these same files successfully with no project-level entry point setting. */
+int wmain(int argc, wchar_t *wargv[])
+{
+	char **argv;
+	int ret;
+
+	use_utf8_console_output();
+
+	argv = fz_argv_from_wargv(argc, wargv);
+	ret = main(argc, argv);
+	fz_free_argv(argc, argv);
+	return ret;
+}
+#endif
