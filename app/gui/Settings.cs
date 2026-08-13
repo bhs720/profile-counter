@@ -7,15 +7,45 @@ using System.Windows.Forms;
 using System.Xml.Serialization;
 using System.IO;
 using System.Reflection;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
 
 namespace TIFPDFCounter
 {
+    /// <summary>
+    /// Which library analyses TIFF files.
+    /// </summary>
+    public enum TiffEngine
+    {
+        LibTiff,
+        MuPdf
+    }
+
     public static class Settings
     {
         readonly static string appData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ProFile Counter");
-        readonly static string settingsFilename = "UserSettings.xml";
-        readonly static string settingsFile = Path.Combine(appData, settingsFilename);
-        
+
+        /// <summary>
+        /// The settings file as version 3.3 and earlier understood it.
+        /// <para>
+        /// Those versions treat an unrecognised element as a hard error, discard every
+        /// setting, and then overwrite the file with defaults when the window closes --
+        /// so a user who installs an older build after a newer one loses their page
+        /// sizes permanently. This file is therefore frozen at the 3.3 schema: new
+        /// settings are marked [XmlIgnore] and live only in <see cref="preferencesFile"/>.
+        /// It is still written on every save so an older build sees current values for
+        /// the settings it does understand.
+        /// </para>
+        /// </summary>
+        readonly static string legacyFile = Path.Combine(appData, "UserSettings.xml");
+
+        /// <summary>
+        /// The settings file from 3.4 onwards, holding every setting. JSON rather than
+        /// XmlSerializer because it ignores properties it does not recognise, so a file
+        /// written by a future version stays readable here.
+        /// </summary>
+        readonly static string preferencesFile = Path.Combine(appData, "Preferences.json");
+
         public static UserSettings Current { get; private set; }
 
         static Settings()
@@ -25,38 +55,138 @@ namespace TIFPDFCounter
 
         public static void Load()
         {
+            var fromPreferences = LoadPreferences();
+            var fromLegacy = LoadLegacy();
+
+            if (fromPreferences == null && fromLegacy == null)
+            {
+                Current = DefaultUserSettings;
+                Save();
+                return;
+            }
+
+            if (fromPreferences == null)
+            {
+                // First run of 3.4 or later: carry the older file's values forward.
+                Current = fromLegacy;
+                Save();
+                return;
+            }
+
+            if (fromLegacy == null)
+            {
+                Current = fromPreferences;
+                return;
+            }
+
+            // Both exist. Normally Preferences.json is the newer of the two, but a user
+            // can run an older build in between, which writes only the legacy file. Take
+            // whichever was written last so those edits are not silently discarded.
+            if (File.GetLastWriteTimeUtc(legacyFile) > File.GetLastWriteTimeUtc(preferencesFile))
+            {
+                // Settings the older build cannot represent are not in its file; keep the
+                // values we already hold rather than resetting them to defaults.
+                fromLegacy.TiffEngine = fromPreferences.TiffEngine;
+                Current = fromLegacy;
+                Save();
+            }
+            else
+            {
+                Current = fromPreferences;
+            }
+        }
+
+        static UserSettings LoadPreferences()
+        {
+            if (!File.Exists(preferencesFile))
+                return null;
+
             try
             {
-                using (var stream = new FileStream(settingsFile, FileMode.Open))
+                var json = File.ReadAllText(preferencesFile);
+                var loaded = JsonConvert.DeserializeObject<UserSettings>(json);
+                return loaded ?? throw new Exception("Preferences file was empty.");
+            }
+            catch (Exception ex)
+            {
+                Quarantine(preferencesFile, ex);
+                return null;
+            }
+        }
+
+        static UserSettings LoadLegacy()
+        {
+            if (!File.Exists(legacyFile))
+                return null;
+
+            try
+            {
+                using (var stream = new FileStream(legacyFile, FileMode.Open, FileAccess.Read))
                 {
                     var xml = new XmlSerializer(typeof(UserSettings));
-                    
-                    xml.UnknownAttribute += (sender, args) =>
-                    {
-                        System.Diagnostics.Debug.Print("UnknownAttribute: " + args.ToString());
-                        throw new Exception("Unknown attribute: " + args.Attr.Name);
-                    };
-                    xml.UnknownElement += (sender, args) =>
-                    {
-                        System.Diagnostics.Debug.Print("UnknownElement: " + args.Element.Name);
-                        throw new Exception("Unknown element: " + args.Element.Name);
-                    };
 
-                    Current = xml.Deserialize(stream) as UserSettings;
+                    // Log unrecognised content rather than failing on it. Treating it as an
+                    // error is what made a newer settings file destroy an older build's
+                    // configuration; a setting we do not know about is not a reason to throw
+                    // away the ones we do.
+                    xml.UnknownAttribute += (sender, args) =>
+                        System.Diagnostics.Debug.Print("UnknownAttribute: " + args.Attr.Name);
+                    xml.UnknownElement += (sender, args) =>
+                        System.Diagnostics.Debug.Print("UnknownElement: " + args.Element.Name);
+
+                    return xml.Deserialize(stream) as UserSettings;
                 }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                MessageBox.Show("Default settings are loaded.", "Defaults", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                Current = DefaultUserSettings;
+                Quarantine(legacyFile, ex);
+                return null;
             }
+        }
+
+        /// <summary>
+        /// Moves a settings file we could not read aside instead of letting the next save
+        /// overwrite it. Without this a transient problem -- a half-written file, a disk
+        /// error -- silently costs the user every custom page size they had.
+        /// </summary>
+        static void Quarantine(string path, Exception ex)
+        {
+            System.Diagnostics.Debug.Print("Could not read " + path + ": " + ex.Message);
+            try
+            {
+                var bad = path + ".bad";
+                File.Delete(bad);
+                File.Move(path, bad);
+            }
+            catch { /* nothing further to try; do not block startup over it */ }
         }
 
         public static void Save()
         {
+            SavePreferences();
+            SaveLegacy();
+        }
+
+        static void SavePreferences()
+        {
             try
             {
-                using (var stream = new FileStream(settingsFile, FileMode.Create))
+                var json = JsonConvert.SerializeObject(Current, Formatting.Indented);
+                File.WriteAllText(preferencesFile, json);
+            }
+            catch { }
+        }
+
+        /// <summary>
+        /// Written on every save purely so that an older build still sees current values.
+        /// Properties added after 3.3 are [XmlIgnore] and must stay that way -- adding one
+        /// here would make those versions discard the whole file.
+        /// </summary>
+        static void SaveLegacy()
+        {
+            try
+            {
+                using (var stream = new FileStream(legacyFile, FileMode.Create))
                 {
                     var xml = new XmlSerializer(typeof(UserSettings));
                     xml.Serialize(stream, Current);
@@ -79,6 +209,7 @@ namespace TIFPDFCounter
                 def.WindowLocation = new Point(0, 0);
                 def.WindowSize = new Size(640, 480);
                 def.WindowState = FormWindowState.Normal;
+                def.TiffEngine = TiffEngine.LibTiff;
                 def.ColorThreshold = 0.25m;
                 def.PerformColorAnalysis = true;
                 def.CheckForDuplicateFiles = true;
@@ -123,7 +254,22 @@ namespace TIFPDFCounter
             public Size WindowSize { get; set; }
             public FormWindowState WindowState { get; set; }
             /// <summary>
-            /// A number between 0 and 1 which represents how far away from gray a color can be before it is considered color. 
+            /// Which library analyses TIFF files. LibTIFF is markedly faster and uses a
+            /// fraction of the memory; MuPDF is kept as an escape hatch for files where
+            /// LibTIFF gives an unexpected answer.
+            /// <para>
+            /// [XmlIgnore] is required, not cosmetic: version 3.3 and earlier abort on any
+            /// element they do not recognise and then overwrite the file with defaults.
+            /// Every setting added after 3.3 must carry this attribute, so it appears in
+            /// Preferences.json only.
+            /// </para>
+            /// </summary>
+            [XmlIgnore]
+            [JsonConverter(typeof(StringEnumConverter))]
+            public TiffEngine TiffEngine { get; set; }
+
+            /// <summary>
+            /// A number between 0 and 1 which represents how far away from gray a color can be before it is considered color.
             /// 0.02 is very strict. 0.25 allows for some variation (like in JPEG artifacts).
             /// </summary>
             public decimal ColorThreshold { get; set; }
