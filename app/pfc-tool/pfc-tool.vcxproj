@@ -209,7 +209,33 @@ rem separate build trees. CMP0091 must be NEW or CMAKE_MSVC_RUNTIME_LIBRARY is
 rem silently ignored and the static CRT choice does not take effect.
 set "PFC_TIFFCRT=MultiThreaded"
 if /i "$(Configuration)"=="Debug" set "PFC_TIFFCRT=MultiThreadedDebug"
-"%PFC_CMAKE%" -S "$(ProjectDir)libtiff" -B "$(ProjectDir)libtiff-build\$(Platform)\$(Configuration)" -A $(Platform) -T $(PlatformToolset) -DCMAKE_POLICY_DEFAULT_CMP0091=NEW -DCMAKE_MSVC_RUNTIME_LIBRARY=%PFC_TIFFCRT% -DBUILD_SHARED_LIBS=OFF -Dtiff-tools=OFF -Dtiff-tests=OFF -Dtiff-contrib=OFF -Dtiff-docs=OFF -Dtiff-deprecated=OFF -Dtiff-install=OFF -Dzlib=OFF -Djpeg=OFF -Dlzma=OFF -Dzstd=OFF -Dwebp=OFF -Dlerc=OFF -Djbig=OFF || exit /b 1
+rem Deflate and JPEG compressed TIFFs need zlib and libjpeg, both of which mupdf
+rem already vendors and links into libmupdf.lib. Building a second copy would put
+rem two zlibs and two libjpegs in one binary. A static library does not resolve
+rem external symbols, so libtiff only needs the headers here; the code arrives
+rem when pfc-tool links libmupdf.lib. find_package still insists on a library
+rem file existing, so it is pointed at libmupdf.lib, which the step above built.
+rem libjpeg's generated jconfig.h lives outside its source directory, hence the
+rem extra include path rather than a second JPEG_INCLUDE_DIR.
+set "PFC_MUPDFLIB=$(ProjectDir)mupdf\platform\win32\$(Platform)\$(Configuration)\libmupdf.lib"
+if /i "$(Platform)"=="Win32" set "PFC_MUPDFLIB=$(ProjectDir)mupdf\platform\win32\$(Configuration)\libmupdf.lib"
+set "PFC_ZLIBINC=$(ProjectDir)mupdf\thirdparty\zlib"
+rem mupdf keeps libjpeg's generated jconfig.h outside the library's own source
+rem directory, and JPEG_INCLUDE_DIR takes a single path, so gather the headers
+rem into one staging directory. Setting INCLUDE instead does not work: MSBuild
+rem replaces it from its own toolchain properties before cl runs.
+set "PFC_JPEGINC=$(ProjectDir)libtiff-build\jpeg-include"
+if not exist "%PFC_JPEGINC%" md "%PFC_JPEGINC%" || exit /b 1
+copy /y "$(ProjectDir)mupdf\thirdparty\libjpeg\*.h" "%PFC_JPEGINC%" >nul || exit /b 1
+copy /y "$(ProjectDir)mupdf\scripts\libjpeg\jconfig.h" "%PFC_JPEGINC%" >nul || exit /b 1
+rem Values given to -D must use forward slashes. CMake treats a backslash as an
+rem escape when it writes these into the generated try_compile project, and the
+rem x64 in the path becomes \x64, which it reads as a hex escape and rejects as
+rem a syntax error. Forward slashes are valid paths on Windows and avoid it.
+set "PFC_MUPDFLIB=%PFC_MUPDFLIB:\=/%"
+set "PFC_ZLIBINC=%PFC_ZLIBINC:\=/%"
+set "PFC_JPEGINC=%PFC_JPEGINC:\=/%"
+"%PFC_CMAKE%" -S "$(ProjectDir)libtiff" -B "$(ProjectDir)libtiff-build\$(Platform)\$(Configuration)" -A $(Platform) -T $(PlatformToolset) -DCMAKE_POLICY_DEFAULT_CMP0091=NEW -DCMAKE_MSVC_RUNTIME_LIBRARY=%PFC_TIFFCRT% -DBUILD_SHARED_LIBS=OFF -Dtiff-tools=OFF -Dtiff-tests=OFF -Dtiff-contrib=OFF -Dtiff-docs=OFF -Dtiff-deprecated=OFF -Dtiff-install=OFF -Dzlib=ON -Djpeg=ON -DZLIB_INCLUDE_DIR=%PFC_ZLIBINC% -DZLIB_LIBRARY=%PFC_MUPDFLIB% -DJPEG_INCLUDE_DIR=%PFC_JPEGINC% -DJPEG_LIBRARY=%PFC_MUPDFLIB% -Dlzma=OFF -Dzstd=OFF -Dwebp=OFF -Dlerc=OFF -Djbig=OFF || exit /b 1
 "%PFC_CMAKE%" --build "$(ProjectDir)libtiff-build\$(Platform)\$(Configuration)" --config $(Configuration) --target tiff || exit /b 1</Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
