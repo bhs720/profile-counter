@@ -130,8 +130,8 @@
            argument is an exact path that may legitimately contain * or ?. -->
       <EntryPointSymbol>wmainCRTStartup</EntryPointSymbol>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>libmupdf.lib;tiff.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>mupdf\platform\win32\x64\Debug;$(ProjectDir)libtiff-build\$(Platform)\$(Configuration)\libtiff\$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>libmupdf.lib;tiff.lib;Lerc.lib;zstd_static.lib;libwebp.lib;libsharpyuv.lib;lzma.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>mupdf\platform\win32\x64\Debug;$(ProjectDir)libtiff-build\$(Platform)\$(Configuration)\libtiff\$(Configuration);$(ProjectDir)codec-build\install\$(Platform)\$(Configuration)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -159,8 +159,8 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>libmupdf.lib;tiff.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>mupdf\platform\win32\Release;$(ProjectDir)libtiff-build\$(Platform)\$(Configuration)\libtiff\$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>libmupdf.lib;tiff.lib;Lerc.lib;zstd_static.lib;libwebp.lib;libsharpyuv.lib;lzma.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>mupdf\platform\win32\Release;$(ProjectDir)libtiff-build\$(Platform)\$(Configuration)\libtiff\$(Configuration);$(ProjectDir)codec-build\install\$(Platform)\$(Configuration)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -188,12 +188,16 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>libmupdf.lib;tiff.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>mupdf\platform\win32\x64\Release;$(ProjectDir)libtiff-build\$(Platform)\$(Configuration)\libtiff\$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>libmupdf.lib;tiff.lib;Lerc.lib;zstd_static.lib;libwebp.lib;libsharpyuv.lib;lzma.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>mupdf\platform\win32\x64\Release;$(ProjectDir)libtiff-build\$(Platform)\$(Configuration)\libtiff\$(Configuration);$(ProjectDir)codec-build\install\$(Platform)\$(Configuration)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="main.c" />
+    <ClCompile Include="tiff-engine.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="tiff-engine.h" />
   </ItemGroup>
   <ItemDefinitionGroup Condition="'$(Platform)'=='x64' Or '$(Platform)'=='Win32'">
     <PreBuildEvent>
@@ -235,7 +239,39 @@ rem a syntax error. Forward slashes are valid paths on Windows and avoid it.
 set "PFC_MUPDFLIB=%PFC_MUPDFLIB:\=/%"
 set "PFC_ZLIBINC=%PFC_ZLIBINC:\=/%"
 set "PFC_JPEGINC=%PFC_JPEGINC:\=/%"
-"%PFC_CMAKE%" -S "$(ProjectDir)libtiff" -B "$(ProjectDir)libtiff-build\$(Platform)\$(Configuration)" -A $(Platform) -T $(PlatformToolset) -DCMAKE_POLICY_DEFAULT_CMP0091=NEW -DCMAKE_MSVC_RUNTIME_LIBRARY=%PFC_TIFFCRT% -DBUILD_SHARED_LIBS=OFF -Dtiff-tools=OFF -Dtiff-tests=OFF -Dtiff-contrib=OFF -Dtiff-docs=OFF -Dtiff-deprecated=OFF -Dtiff-install=OFF -Dzlib=ON -Djpeg=ON -DZLIB_INCLUDE_DIR=%PFC_ZLIBINC% -DZLIB_LIBRARY=%PFC_MUPDFLIB% -DJPEG_INCLUDE_DIR=%PFC_JPEGINC% -DJPEG_LIBRARY=%PFC_MUPDFLIB% -Dlzma=OFF -Dzstd=OFF -Dwebp=OFF -Dlerc=OFF -Djbig=OFF || exit /b 1
+rem LZMA, Zstd, WebP and LERC can each carry colour, so a TIFF using one is a
+rem file whose colour is fully determinable. Leaving the codec out would make us
+rem report Color=-1 for it -- an admission of our own build configuration
+rem dressed up as a property of the file. mupdf vendors none of them, so each is
+rem its own submodule built the same way as libtiff.
+rem
+rem JBIG is deliberately absent: it is a bilevel-only format, so its photometric
+rem tag determines the answer and no decoder is ever needed.
+rem
+rem Each installs into one prefix that libtiff is then pointed at through
+rem CMAKE_PREFIX_PATH. Forward slashes for the same escaping reason as above.
+set "PFC_CODECPREFIX=$(ProjectDir)codec-build\install\$(Platform)\$(Configuration)"
+set "PFC_CODECPREFIX=%PFC_CODECPREFIX:\=/%"
+set "PFC_CODECCOMMON=-A $(Platform) -T $(PlatformToolset) -DCMAKE_POLICY_DEFAULT_CMP0091=NEW -DCMAKE_MSVC_RUNTIME_LIBRARY=%PFC_TIFFCRT% -DBUILD_SHARED_LIBS=OFF -DBUILD_TESTING=OFF -DCMAKE_INSTALL_PREFIX=%PFC_CODECPREFIX%"
+rem zstd keeps its CMakeLists under build/cmake rather than at the repository root.
+rem liblzma declares its API for import from a DLL unless LZMA_API_STATIC is
+rem defined, so without it libtiff compiles calls to __imp_lzma_* that a static
+rem build cannot satisfy. The define has to reach libtiff's own compile too,
+rem hence CMAKE_C_FLAGS below rather than only here.
+call :pfc_codec xz "$(ProjectDir)xz" "-DCMAKE_C_FLAGS=-DLZMA_API_STATIC" || exit /b 1
+call :pfc_codec zstd "$(ProjectDir)zstd\build\cmake" "-DZSTD_BUILD_PROGRAMS=OFF -DZSTD_BUILD_TESTS=OFF -DZSTD_BUILD_SHARED=OFF -DZSTD_BUILD_STATIC=ON" || exit /b 1
+call :pfc_codec libwebp "$(ProjectDir)libwebp" "-DWEBP_BUILD_ANIM_UTILS=OFF -DWEBP_BUILD_CWEBP=OFF -DWEBP_BUILD_DWEBP=OFF -DWEBP_BUILD_GIF2WEBP=OFF -DWEBP_BUILD_IMG2WEBP=OFF -DWEBP_BUILD_VWEBP=OFF -DWEBP_BUILD_WEBPINFO=OFF -DWEBP_BUILD_WEBPMUX=OFF -DWEBP_BUILD_EXTRAS=OFF" || exit /b 1
+call :pfc_codec lerc "$(ProjectDir)lerc" "-DBUILD_TEST=OFF" || exit /b 1
+goto :pfc_codecs_done
+
+:pfc_codec
+"%PFC_CMAKE%" -S %2 -B "$(ProjectDir)codec-build\%1\$(Platform)\$(Configuration)" %PFC_CODECCOMMON% %~3 || exit /b 1
+"%PFC_CMAKE%" --build "$(ProjectDir)codec-build\%1\$(Platform)\$(Configuration)" --config $(Configuration) --target install || exit /b 1
+exit /b 0
+
+:pfc_codecs_done
+set "PFC_CODECS=%PFC_CODECPREFIX%"
+"%PFC_CMAKE%" -S "$(ProjectDir)libtiff" -B "$(ProjectDir)libtiff-build\$(Platform)\$(Configuration)" -A $(Platform) -T $(PlatformToolset) -DCMAKE_POLICY_DEFAULT_CMP0091=NEW -DCMAKE_MSVC_RUNTIME_LIBRARY=%PFC_TIFFCRT% -DBUILD_SHARED_LIBS=OFF -DCMAKE_PREFIX_PATH=%PFC_CODECS% -DCMAKE_C_FLAGS=-DLZMA_API_STATIC -Dtiff-tools=OFF -Dtiff-tests=OFF -Dtiff-contrib=OFF -Dtiff-docs=OFF -Dtiff-deprecated=OFF -Dtiff-install=OFF -Dzlib=ON -Djpeg=ON -DZLIB_INCLUDE_DIR=%PFC_ZLIBINC% -DZLIB_LIBRARY=%PFC_MUPDFLIB% -DJPEG_INCLUDE_DIR=%PFC_JPEGINC% -DJPEG_LIBRARY=%PFC_MUPDFLIB% -Dlzma=ON -Dzstd=ON -Dwebp=ON -Dlerc=ON -Djbig=OFF || exit /b 1
 "%PFC_CMAKE%" --build "$(ProjectDir)libtiff-build\$(Platform)\$(Configuration)" --config $(Configuration) --target tiff || exit /b 1</Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>

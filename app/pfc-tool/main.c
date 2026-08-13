@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "mupdf/fitz.h"
+#include "tiff-engine.h"
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -144,29 +145,58 @@ int main(int argc, char **argv)
 	int bookmarkcount = 0;
 	int measured = 0;
 	int i;
+	int use_libtiff_for_tiff = 1;
+	const char *positional[3];
+	int npositional = 0;
 
-	if (argc < 2)
+	/* Options are separated from positional arguments before anything is read,
+	 * so an option may appear anywhere without shifting what the positions
+	 * mean. Three positionals are already easy to transpose; making the fourth
+	 * an option keeps a misplaced value a loud error rather than a silent
+	 * change of engine. */
+	for (i = 1; i < argc; i++)
 	{
-		fprintf(stderr, "usage: pfc-tool.exe \"<filename>\" [<colorThreshold 0-1|-1>] [<checkPixels 0|1>]\n");
+		if (strncmp(argv[i], "--tiff-engine=", 14) == 0)
+		{
+			const char *value = argv[i] + 14;
+			if (strcmp(value, "libtiff") == 0)
+				use_libtiff_for_tiff = 1;
+			else if (strcmp(value, "mupdf") == 0)
+				use_libtiff_for_tiff = 0;
+			else
+			{
+				fprintf(stderr, "Invalid --tiff-engine '%s'; expected libtiff or mupdf\n", value);
+				return 1;
+			}
+			continue;
+		}
+
+		if (npositional < 3)
+			positional[npositional++] = argv[i];
+	}
+
+	if (npositional < 1)
+	{
+		fprintf(stderr, "usage: pfc-tool.exe \"<filename>\" [<colorThreshold 0-1|-1>] [<checkPixels 0|1>] [--tiff-engine=libtiff|mupdf]\n");
 		return 1;
 	}
-	filename = argv[1];
+	filename = positional[0];
 
-	if (argc >= 3)
+	if (npositional >= 2)
 	{
-		if (!parse_number(argv[2], &parsed))
+		if (!parse_number(positional[1], &parsed))
 		{
-			fprintf(stderr, "Invalid colorThreshold '%s'; expected a C-locale number such as 0.25, or -1 to skip color analysis\n", argv[2]);
+			fprintf(stderr, "Invalid colorThreshold '%s'; expected a C-locale number such as 0.25, or -1 to skip color analysis\n", positional[1]);
 			return 1;
 		}
 		color_threshold = (float)parsed;
 	}
 
-	if (argc >= 4)
+	if (npositional >= 3)
 	{
-		if (!parse_number(argv[3], &parsed))
+		if (!parse_number(positional[2], &parsed))
 		{
-			fprintf(stderr, "Invalid checkPixels '%s'; expected 0 or 1\n", argv[3]);
+			fprintf(stderr, "Invalid checkPixels '%s'; expected 0 or 1\n", positional[2]);
 			return 1;
 		}
 		test_pixels = (parsed != 0);
@@ -194,6 +224,14 @@ int main(int argc, char **argv)
 			return 1;
 		}
 	}
+
+	/* TIFFs go to libtiff unless the caller asks otherwise. mupdf decodes every
+	 * page of a multi-page image format into a full pixmap simply to produce a
+	 * page, which for a large scan costs hundreds of megabytes and seconds
+	 * before any question is asked of it. Recognition is by content, so a TIFF
+	 * with the wrong extension is still handled here. */
+	if (use_libtiff_for_tiff && tiff_is_tiff(filename))
+		return tiff_analyze(filename, (float)color_threshold, test_color, test_pixels);
 
 	ctx = fz_new_context(NULL, NULL, FZ_STORE_DEFAULT);
 	if (ctx == NULL)

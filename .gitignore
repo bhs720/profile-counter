@@ -338,3 +338,6 @@ ASALocalRun/
 
 # CMake build tree for the vendored libtiff submodule (see pfc-tool.vcxproj PreBuildEvent)
 /app/pfc-tool/libtiff-build/
+
+# CMake build trees for the vendored TIFF codec submodules
+/app/pfc-tool/codec-build/
