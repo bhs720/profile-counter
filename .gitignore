@@ -335,3 +335,6 @@ ASALocalRun/
 
 # Local History for Visual Studio
 .localhistory/
+
+# CMake build tree for the vendored libtiff submodule (see pfc-tool.vcxproj PreBuildEvent)
+/app/pfc-tool/libtiff-build/

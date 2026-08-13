@@ -115,7 +115,7 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
-      <AdditionalIncludeDirectories>$(UniversalCRT_IncludePath);mupdf\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(UniversalCRT_IncludePath);mupdf\include;$(ProjectDir)libtiff\libtiff;$(ProjectDir)libtiff-build\$(Platform)\$(Configuration)\libtiff;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <WholeProgramOptimization>true</WholeProgramOptimization>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
@@ -130,8 +130,8 @@
            argument is an exact path that may legitimately contain * or ?. -->
       <EntryPointSymbol>wmainCRTStartup</EntryPointSymbol>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>libmupdf.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>mupdf\platform\win32\x64\Debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>libmupdf.lib;tiff.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>mupdf\platform\win32\x64\Debug;$(ProjectDir)libtiff-build\$(Platform)\$(Configuration)\libtiff\$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -143,7 +143,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>mupdf\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>mupdf\include;$(ProjectDir)libtiff\libtiff;$(ProjectDir)libtiff-build\$(Platform)\$(Configuration)\libtiff;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
@@ -159,8 +159,8 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>libmupdf.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>mupdf\platform\win32\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>libmupdf.lib;tiff.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>mupdf\platform\win32\Release;$(ProjectDir)libtiff-build\$(Platform)\$(Configuration)\libtiff\$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -173,7 +173,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
-      <AdditionalIncludeDirectories>mupdf\include;$(UniversalCRT_IncludePath);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>mupdf\include;$(UniversalCRT_IncludePath);$(ProjectDir)libtiff\libtiff;$(ProjectDir)libtiff-build\$(Platform)\$(Configuration)\libtiff;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -188,8 +188,8 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>libmupdf.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>mupdf\platform\win32\x64\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>libmupdf.lib;tiff.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>mupdf\platform\win32\x64\Release;$(ProjectDir)libtiff-build\$(Platform)\$(Configuration)\libtiff\$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -197,9 +197,20 @@
   </ItemGroup>
   <ItemDefinitionGroup Condition="'$(Platform)'=='x64' Or '$(Platform)'=='Win32'">
     <PreBuildEvent>
-      <Message>Patching and building mupdf (libmupdf) from the vendored submodule</Message>
+      <Message>Building libmupdf and libtiff from the vendored submodules</Message>
       <Command>call "$(ProjectDir)patches\apply-patches.cmd" || exit /b 1
-"$(MSBuildBinPath)\MSBuild.exe" "$(ProjectDir)mupdf\platform\win32\mupdf.sln" /t:libmupdf /p:Configuration=$(Configuration) /p:Platform=$(Platform) /p:PlatformToolset=$(PlatformToolset) /p:ForceImportAfterCppTargets="$(ProjectDir)static-crt.props" /nologo /v:minimal</Command>
+"$(MSBuildBinPath)\MSBuild.exe" "$(ProjectDir)mupdf\platform\win32\mupdf.sln" /t:libmupdf /p:Configuration=$(Configuration) /p:Platform=$(Platform) /p:PlatformToolset=$(PlatformToolset) /p:ForceImportAfterCppTargets="$(ProjectDir)static-crt.props" /nologo /v:minimal || exit /b 1
+rem libtiff builds with CMake, which the C++ workload installs alongside MSBuild.
+rem Fall back to whatever is on PATH if this Visual Studio lays it out differently.
+set "PFC_CMAKE=$(VSInstallDir)Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe"
+if not exist "%PFC_CMAKE%" set "PFC_CMAKE=cmake"
+rem The runtime library is a configure-time setting, so Debug and Release need
+rem separate build trees. CMP0091 must be NEW or CMAKE_MSVC_RUNTIME_LIBRARY is
+rem silently ignored and the static CRT choice does not take effect.
+set "PFC_TIFFCRT=MultiThreaded"
+if /i "$(Configuration)"=="Debug" set "PFC_TIFFCRT=MultiThreadedDebug"
+"%PFC_CMAKE%" -S "$(ProjectDir)libtiff" -B "$(ProjectDir)libtiff-build\$(Platform)\$(Configuration)" -A $(Platform) -T $(PlatformToolset) -DCMAKE_POLICY_DEFAULT_CMP0091=NEW -DCMAKE_MSVC_RUNTIME_LIBRARY=%PFC_TIFFCRT% -DBUILD_SHARED_LIBS=OFF -Dtiff-tools=OFF -Dtiff-tests=OFF -Dtiff-contrib=OFF -Dtiff-docs=OFF -Dtiff-deprecated=OFF -Dtiff-install=OFF -Dzlib=OFF -Djpeg=OFF -Dlzma=OFF -Dzstd=OFF -Dwebp=OFF -Dlerc=OFF -Djbig=OFF || exit /b 1
+"%PFC_CMAKE%" --build "$(ProjectDir)libtiff-build\$(Platform)\$(Configuration)" --config $(Configuration) --target tiff || exit /b 1</Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

@@ -1,3 +1,6 @@
 [submodule "app/pfc-tool/mupdf"]
 	path = app/pfc-tool/mupdf
 	url = https://github.com/ArtifexSoftware/mupdf.git
+[submodule "app/pfc-tool/libtiff"]
+	path = app/pfc-tool/libtiff
+	url = https://github.com/libsdl-org/libtiff.git
