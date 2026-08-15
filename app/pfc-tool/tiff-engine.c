@@ -117,31 +117,60 @@ static void sane_resolution(float *xres, float *yres)
 	}
 }
 
+/* mupdf's substitute when a TIFF's resolution is missing, zero, or expressed in
+ * no unit at all. Deliberately not SANE_DPI: fz_image_resolution() would fall
+ * back to 72, but load-tiff.c has already put 96 in place by the time it runs,
+ * and 96 is inside the sane band so it passes through untouched. Using 72 here
+ * made every such page come out 4/3 too large against the mupdf engine, which
+ * moves it into a different ANSI/ARCH bucket. */
+#define TIFF_DEFAULT_DPI 96
+
 static void page_size_points(TIFF *tif, float *width_pt, float *height_pt)
 {
 	uint32_t w = 0, h = 0;
-	float xres = 0, yres = 0;
+	float xres_tag = 0, yres_tag = 0, xres, yres;
+	unsigned xres_i, yres_i;
 	uint16_t unit = RESUNIT_INCH;
 
 	TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &w);
 	TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &h);
 
-	if (!TIFFGetField(tif, TIFFTAG_XRESOLUTION, &xres)) xres = 0;
-	if (!TIFFGetField(tif, TIFFTAG_YRESOLUTION, &yres)) yres = 0;
+	if (!TIFFGetField(tif, TIFFTAG_XRESOLUTION, &xres_tag)) xres_tag = 0;
+	if (!TIFFGetField(tif, TIFFTAG_YRESOLUTION, &yres_tag)) yres_tag = 0;
 	TIFFGetFieldDefaulted(tif, TIFFTAG_RESOLUTIONUNIT, &unit);
 
-	if (unit == RESUNIT_CENTIMETER)
+	/* mupdf keeps the resolution in an unsigned int and reads a RATIONAL tag by
+	 * integer division (tiff_read_tag_value in load-tiff.c), so a fractional
+	 * dpi is truncated before anything uses it. Truncate identically: text.tif
+	 * otherwise measured 367.78pt here against mupdf's 367.00. The upper guard
+	 * keeps a nonsense tag out of an out-of-range float-to-unsigned cast. */
+	xres_i = (xres_tag > 0 && xres_tag < (float)INSANE_DPI * 1000) ? (unsigned)xres_tag : 0;
+	yres_i = (yres_tag > 0 && yres_tag < (float)INSANE_DPI * 1000) ? (unsigned)yres_tag : 0;
+
+	switch (unit)
 	{
-		xres *= 2.54f;
-		yres *= 2.54f;
-	}
-	else if (unit == RESUNIT_NONE)
-	{
-		/* The values are an aspect ratio, not a physical density. */
-		xres = 0;
-		yres = 0;
+	case RESUNIT_INCH:
+		break;
+	case RESUNIT_CENTIMETER:
+		/* Integer arithmetic in the same order mupdf uses. */
+		xres_i = xres_i * 254 / 100;
+		yres_i = yres_i * 254 / 100;
+		break;
+	default:
+		/* RESUNIT_NONE means the values are an aspect ratio rather than a
+		 * density, and any unit mupdf does not know lands here too. */
+		xres_i = yres_i = TIFF_DEFAULT_DPI;
+		break;
 	}
 
+	if (xres_i == 0 || yres_i == 0)
+	{
+		xres_i = TIFF_DEFAULT_DPI;
+		yres_i = TIFF_DEFAULT_DPI;
+	}
+
+	xres = (float)xres_i;
+	yres = (float)yres_i;
 	sane_resolution(&xres, &yres);
 
 	*width_pt = w * POINTS_PER_INCH / xres;
