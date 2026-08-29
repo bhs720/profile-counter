@@ -38,20 +38,33 @@ namespace TIFPDFCounter
         /// </summary>
         public static void BeginInvokeIfRequired(Control ctrl, MethodInvoker action)
         {
-            try
+            // Post even when the caller is already on the UI thread. A FileAnalyzer can
+            // complete synchronously -- Go() catches a failed Process.Start and raises
+            // AnalysisComplete on the calling thread -- and running the handler inline
+            // would re-enter ProcessWindow.NextFile from inside NextFile, nesting one
+            // frame set per queued file. A missing pfc-tool.exe and a few hundred dropped
+            // files would then overflow the stack, which .NET cannot catch.
+            //
+            // Posting also keeps exceptions thrown by the action out of the catch below,
+            // where they were being swallowed; delivered from the message loop they
+            // surface normally.
+            if (ctrl.IsHandleCreated)
             {
-                if (ctrl.InvokeRequired)
+                try
                 {
                     ctrl.BeginInvoke(action);
                 }
-                else
-                {
-                    action();
-                }
+                // Covers ObjectDisposedException too, which derives from this: the window
+                // can be closed between the post and its delivery, and neither case is an
+                // error.
+                catch (InvalidOperationException) { }
             }
-            // Covers ObjectDisposedException too, which derives from this: the window can
-            // be closed between the post and its delivery, and neither case is an error.
-            catch (InvalidOperationException) { }
+            else
+            {
+                // No handle to post to, so there is no message loop to wait for. Callers
+                // reach this only before ProcessWindow_Load, where no analyzer exists yet.
+                action();
+            }
         }
 
         public static string BytesToString(long byteCount)

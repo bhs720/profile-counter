@@ -176,8 +176,12 @@ int main(int argc, char **argv)
 
 	/* fz_new_test_device treats the threshold as a 0-1 fraction of full scale.
 	 * Anything above 1 silently disables detection, so reject it up front
-	 * rather than reporting every page as black and white. */
-	if (test_color && color_threshold > 1)
+	 * rather than reporting every page as black and white. Written as a negated
+	 * range test so NaN is rejected too: it compares false against every bound,
+	 * so a plain "> 1" test would pass it straight through to the test device,
+	 * where every comparison against it fails and every page reports black and
+	 * white -- the exact outcome this check exists to prevent. */
+	if (test_color && !(color_threshold >= 0 && color_threshold <= 1))
 	{
 		fprintf(stderr, "Invalid colorThreshold %f; expected 0-1, or -1 to skip color analysis\n", color_threshold);
 		return 1;
@@ -387,8 +391,11 @@ static void use_utf8_console_output(void)
  *
  * This is the wrapper mupdf's own tools use (see source/tools/mutool.c), so the
  * conversion is upstream's rather than hand-rolled. Defining both main and wmain
- * is deliberate: the linker selects wmainCRTStartup, which is how mutool.exe
- * opens these same files successfully with no project-level entry point setting. */
+ * is not sufficient on its own: with both present the linker selects
+ * mainCRTStartup, the ANSI startup, and nothing changes. pfc-tool.vcxproj names
+ * the entry point explicitly instead, setting EntryPointSymbol to wmainCRTStartup
+ * in every configuration -- do not drop that setting. Removing it still links and
+ * still works for every ASCII path, so nothing catches the regression. */
 int wmain(int argc, wchar_t *wargv[])
 {
 	char **argv;
