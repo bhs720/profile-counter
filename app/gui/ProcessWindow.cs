@@ -86,7 +86,7 @@ namespace TIFPDFCounter
 
         private void Analyzer_ProgressChanged(FileAnalyzer instance, int completed, int total)
         {
-            Utility.BeginInvokeIfRequired(this, () =>
+            UiThread.BeginInvokeIfRequired(this, () =>
             {
                 var dgvr = (DataGridViewRow)instance.Tag;
 
@@ -101,7 +101,7 @@ namespace TIFPDFCounter
 
         private void Analyzer_AnalysisComplete(FileAnalyzer instance)
         {
-            Utility.BeginInvokeIfRequired(this, () =>
+            UiThread.BeginInvokeIfRequired(this, () =>
             {
                 instance.ProgressChanged -= Analyzer_ProgressChanged;
                 instance.AnalysisComplete -= Analyzer_AnalysisComplete;
