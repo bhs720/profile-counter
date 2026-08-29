@@ -280,6 +280,96 @@ namespace TIFPDFCounter.Tests
         }
 
         [Fact]
+        public void CompletesExactlyOnceWhenAStartFailureRacesTheCompletionSignals()
+        {
+            // Complete() has two callers: SignalArrived() when the signal counter reaches
+            // zero, and Go()'s catch block when Start() throws. Those two calls to
+            // Complete() genuinely race in production: PfcToolProcess.Start() calls
+            // process.Start() and then BeginErrorReadLine()/BeginOutputReadLine(). If
+            // process.Start() succeeds but a later step throws, the child is already live
+            // and EnableRaisingEvents is already set -- so Exited can fire on a thread
+            // pool thread while Go()'s catch is still running Complete() on the calling
+            // thread. This is the race completionRaised's CompareExchange exists to
+            // survive; the earlier concurrency test never exercised it because its two
+            // Complete() calls both went through the same SignalArrived() decrement path,
+            // where the atomic counter alone already guarantees only one thread reaches
+            // zero.
+            //
+            // The two paths to Complete() are not the same length -- Go()'s path throws
+            // and catches a real exception, which costs far more than the three signal
+            // deliveries on the other path -- so a single isolated pair of threads tends
+            // to reach Complete() at consistently different times and rarely overlaps in
+            // the few-instruction window the guard protects. Running many pairs per wave,
+            // released from one shared barrier, relies on ordinary OS scheduler
+            // contention (preemption, core migration) across the whole wave to land some
+            // pair's two Complete() calls together, without asserting anything about
+            // timing.
+            const int Waves = 250;
+            const int PairsPerWave = 12;
+
+            for (int wave = 0; wave < Waves; wave++)
+            {
+                var completedCounts = new int[PairsPerWave];
+                var threads = new List<Thread>();
+
+                // A busy-spin release rather than a Barrier: every worker thread spins on
+                // a shared volatile flag instead of blocking on a wait handle, so once the
+                // controlling thread below flips it, all workers observe it and leave
+                // their spin loops within a handful of CPU cycles -- no OS wakeup latency
+                // to desynchronize them.
+                int readyCount = 0;
+                bool go = false;
+
+                for (int p = 0; p < PairsPerWave; p++)
+                {
+                    int index = p;
+                    var factory = new FakePfcToolProcessFactory();
+                    var analyzer = new FileAnalyzer(@"C:\files\a.pdf", Options(), factory);
+                    analyzer.AnalysisComplete += a => Interlocked.Increment(ref completedCounts[index]);
+
+                    var process = factory.Last;
+                    process.StartThrowsAfterLaunch = new InvalidOperationException("reader failed to attach");
+
+                    threads.Add(new Thread(() =>
+                    {
+                        Interlocked.Increment(ref readyCount);
+                        var spin = new SpinWait();
+                        while (!Volatile.Read(ref go)) spin.SpinOnce();
+                        analyzer.Go(); // Start() throws; the catch block calls Complete() directly.
+                    }));
+
+                    threads.Add(new Thread(() =>
+                    {
+                        Interlocked.Increment(ref readyCount);
+                        var spin = new SpinWait();
+                        while (!Volatile.Read(ref go)) spin.SpinOnce();
+
+                        // Levels this thread's timing against Go()'s exception-throwing
+                        // path without a sleep or a timing assumption -- both pay the
+                        // same one-time cost of throwing and catching an exception.
+                        try { throw new InvalidOperationException("timing parity"); }
+                        catch { /* discarded -- its only purpose is matching Go()'s cost */ }
+
+                        process.Finish(0, "stdout", "stderr", "exit"); // Drives Complete() via SignalArrived().
+                    }));
+                }
+
+                foreach (var t in threads) t.Start();
+
+                var readySpin = new SpinWait();
+                while (Volatile.Read(ref readyCount) < PairsPerWave * 2) readySpin.SpinOnce();
+                Volatile.Write(ref go, true);
+
+                foreach (var t in threads) t.Join();
+
+                for (int p = 0; p < PairsPerWave; p++)
+                {
+                    Assert.Equal(1, completedCounts[p]);
+                }
+            }
+        }
+
+        [Fact]
         public void TheProcessIsLaunchedWithTheConfiguredPathAndArguments()
         {
             var options = Options();

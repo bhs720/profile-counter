@@ -26,6 +26,15 @@ namespace TIFPDFCounter.Tests
         /// <summary>When set, Start() throws it -- the missing pfc-tool.exe case.</summary>
         public Exception StartThrows { get; set; }
 
+        /// <summary>
+        /// When set, Start() marks the process Started and then throws it -- models
+        /// PfcToolProcess.Start(): process.Start() succeeds (the child is live and
+        /// EnableRaisingEvents is already set from the constructor) but a later step,
+        /// e.g. BeginErrorReadLine(), fails. Unlike StartThrows, signals can legitimately
+        /// arrive afterwards because the child process is genuinely running.
+        /// </summary>
+        public Exception StartThrowsAfterLaunch { get; set; }
+
         public FakePfcToolProcess(string toolPath, string arguments)
         {
             ToolPath = toolPath;
@@ -34,6 +43,12 @@ namespace TIFPDFCounter.Tests
 
         public void Start()
         {
+            if (StartThrowsAfterLaunch != null)
+            {
+                Started = true;
+                throw StartThrowsAfterLaunch;
+            }
+
             if (StartThrows != null)
                 throw StartThrows;
 
