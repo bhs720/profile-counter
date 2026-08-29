@@ -313,6 +313,12 @@ Each commit leaves `dotnet build` and `dotnet test` green.
   pool is exercised; progress bars advance, completed files leave the grid, failures show
   in red with their error text, summary totals appear. A batch cancelled mid-run by
   closing the process window closes rather than hanging.
+
+  This is driven through the `windows-mcp` MCP server rather than by hand. `MainForm` has
+  no File→Open and `Program.Main` ignores its arguments, so `OnDragDrop` is the only input
+  path the application has: the check requires a genuine mouse drag from an Explorer
+  window onto the main window, with several files selected at once so the worker pool is
+  actually filled.
 - Existing user settings survive: back up `%LocalAppData%\ProFile Counter\UserSettings.xml`,
   run the app, confirm the configured page sizes are still there and that no
   "Default settings are loaded" dialog appeared.

@@ -23,6 +23,7 @@ Copied verbatim from `specs/2026-08-29-testable-analysis-pipeline-design.md`. Ev
 - **`Utility.BytesToString`'s integer division stays as-is.** 1536 bytes displays as "1 KB". Lock it in with a test; do not correct it.
 - Work happens on branch `feature/testable-analysis-pipeline`, PR into `develop`. Do not push.
 - Every commit must leave `dotnet build app\ProFileCounter.sln` and `dotnet test app\ProFileCounter.sln` green.
+- **End-to-end verification is driven through the `windows-mcp` MCP server**, not by hand and not by inference from a green test suite. See "Driving the GUI: use windows-mcp" under Final verification. If that server is not connected, stop and say so rather than skipping the step.
 
 ## File Structure
 
@@ -3438,20 +3439,58 @@ Expected: `0 Warning(s)`, `0 Error(s)`.
 ```
 Expected: both solutions build, output in `app\x64\Release\`.
 
+### Driving the GUI: use windows-mcp
+
+**The end-to-end checks below must be performed by driving the real application through
+the `windows-mcp` MCP server** — launching the exe, screenshotting, clicking, typing and
+dragging — not by asking the user to do it by hand and not by inferring the result from a
+green test suite.
+
+Before starting, list the server's tools and use its actual names; do not guess them. If
+`windows-mcp` is not connected when execution reaches this point, **stop and say so**
+rather than skipping the step or substituting a claim. These checks are the ones that
+matter most in this whole plan: the test suite proves the new code works, not that the
+application still does.
+
+The awkward part is getting files in. `MainForm` has no File→Open and
+`Program.Main(string[] args)` ignores its arguments — `OnDragDrop` is the only input path
+the application has. So the drop has to be a genuine mouse drag:
+
+1. Launch `app\x64\Release\ProFile Counter.exe` and screenshot to confirm the main window
+   is up and to locate it.
+2. Open Explorer at the repo's `test files\` directory and position the two windows so
+   both are visible.
+3. Select several files at once (click the first, shift-click the last) — several
+   matters, because one file at a time never fills the worker pool and the pool is what
+   this work changed.
+4. Drag the selection onto the ProFile Counter window and release.
+5. Screenshot repeatedly during processing rather than only at the end; the progress bars
+   and the "Processing" status are transient and are exactly what step 3 of the pipeline
+   now drives differently.
+
+If the mouse drag proves unreliable after a couple of attempts, say so plainly and fall
+back to asking the user to perform the drop while you observe the result via screenshots.
+Do not silently downgrade to "the tests pass, so it works".
+
 - [ ] **Settings survival** — back up `%LocalAppData%\ProFile Counter\UserSettings.xml`
-  first. Launch `app\x64\Release\ProFile Counter.exe`. Confirm **no** "Default settings
-  are loaded." dialog appears, and that the configured page sizes are intact under
-  Settings. `PageSize` moved assemblies; `Settings.Load` fails closed on any unknown
-  element or attribute, so this is the check that the move was inert in practice.
+  first. Launch `app\x64\Release\ProFile Counter.exe` via windows-mcp and screenshot the
+  first moments after startup. Confirm **no** "Default settings are loaded." dialog
+  appears, then open the page size manager and confirm the configured sizes are intact.
+  `PageSize` moved assemblies; `Settings.Load` fails closed on any unknown element or
+  attribute, so this is the check that the move was inert in practice.
 
-- [ ] **End-to-end run** — drag several files from `test files\` onto the main window at
-  once, so the worker pool is genuinely exercised rather than running one file at a
-  time. Confirm: progress bars advance; completed files leave the grid; failures show in
-  red with their error text; the summary grid totals appear; the title-bar icon and the
-  settings window's panel background still render (the preserialized-resource path).
+- [ ] **End-to-end run** — perform the multi-file drag described above. Confirm by
+  screenshot: progress bars advance; completed files leave the grid; failures show in red
+  with their error text; the summary grid totals appear; and the title-bar icon and the
+  settings window's panel background still render (the preserialized-resource path, which
+  a successful build does not prove).
 
-- [ ] **Cancellation** — start a batch and close the process window mid-run. Confirm it
-  closes rather than hanging.
+- [ ] **Cancellation** — start another batch and close the process window mid-run.
+  Confirm by screenshot that it closes rather than hanging, and that the main window is
+  responsive afterwards.
+
+- [ ] **Report honestly.** State which of these were driven through windows-mcp, which
+  were not, and why. A step that could not be performed is reported as not performed.
 
 - [ ] **Open the PR** into `develop`. Do not push without being asked.
 
