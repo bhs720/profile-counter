@@ -116,4 +116,11 @@
     </Compile>
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The analysis pipeline lives in a UI-free assembly so it can be tested without
+         building this project. Both assemblies share the TIFPDFCounter namespace, so
+         no using statement here changes. -->
+    <ProjectReference Include="..\core\ProFileCounter.Core.csproj" />
+  </ItemGroup>
+
 </Project>
