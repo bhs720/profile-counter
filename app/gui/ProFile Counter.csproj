@@ -29,6 +29,13 @@
     <Prefer32Bit>false</Prefer32Bit>
     <FileAlignment>4096</FileAlignment>
     <WarningLevel>4</WarningLevel>
+
+    <!-- MainForm.resx ($this.Icon) and SettingsWindow.resx (panel1.BackgroundImage)
+         hold System.Drawing objects as bytearray.base64. Under `dotnet build` the
+         GenerateResource task runs on .NET, which cannot instantiate System.Drawing
+         types in order to round-trip them, and fails with MSB3822/MSB3823. Writing
+         preserialized resources passes the base64 through untouched instead. -->
+    <GenerateResourceUsePreserializedResources>true</GenerateResourceUsePreserializedResources>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
@@ -60,6 +67,14 @@
 
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+
+    <!-- Writes the preserialized resources at build time, and is needed again at
+         runtime to read them back, so it ships alongside the exe. -->
+    <PackageReference Include="System.Resources.Extensions" Version="8.0.0" />
+
+    <!-- Supplies the net48 reference assemblies from NuGet, so the managed build
+         does not require a Visual Studio targeting pack to be installed. -->
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
