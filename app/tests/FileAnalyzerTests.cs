@@ -328,72 +328,84 @@ namespace TIFPDFCounter.Tests
             int minWorkerThreads, minIoThreads;
             ThreadPool.GetMinThreads(out minWorkerThreads, out minIoThreads);
             const int PairsPerWave = 32;
+
+            // All 53 tests run in one process, so an elevated ThreadPool floor set here
+            // would otherwise outlive this test and force needless OS thread creation for
+            // every test that runs after it. The try/finally restores the captured
+            // original values on every exit path, including a failed Assert or an
+            // unexpected exception, not just the successful one.
             ThreadPool.SetMinThreads(Math.Max(minWorkerThreads, PairsPerWave * 2 + 4), minIoThreads);
-
-            const int Waves = 400;
-
-            for (int wave = 0; wave < Waves; wave++)
+            try
             {
-                var completedCounts = new int[PairsPerWave];
-                var done = new CountdownEvent(PairsPerWave * 2);
+                const int Waves = 400;
 
-                // A busy-spin release rather than a Barrier or a WaitHandle: every worker
-                // spins on a shared volatile flag instead of blocking, so once the
-                // controlling thread below flips it, all workers -- already hot, already
-                // running -- observe it and leave their spin loops within a handful of
-                // CPU cycles rather than paying an OS wakeup.
-                int readyCount = 0;
-                bool go = false;
-
-                for (int p = 0; p < PairsPerWave; p++)
+                for (int wave = 0; wave < Waves; wave++)
                 {
-                    int index = p;
-                    var factory = new FakePfcToolProcessFactory();
-                    var analyzer = new FileAnalyzer(@"C:\files\a.pdf", Options(), factory);
-                    analyzer.AnalysisComplete += a => Interlocked.Increment(ref completedCounts[index]);
+                    var completedCounts = new int[PairsPerWave];
+                    var done = new CountdownEvent(PairsPerWave * 2);
 
-                    var process = factory.Last;
-                    process.StartThrowsAfterLaunch = new InvalidOperationException("reader failed to attach");
+                    // A busy-spin release rather than a Barrier or a WaitHandle: every worker
+                    // spins on a shared volatile flag instead of blocking, so once the
+                    // controlling thread below flips it, all workers -- already hot, already
+                    // running -- observe it and leave their spin loops within a handful of
+                    // CPU cycles rather than paying an OS wakeup.
+                    int readyCount = 0;
+                    bool go = false;
 
-                    ThreadPool.QueueUserWorkItem(_ =>
+                    for (int p = 0; p < PairsPerWave; p++)
                     {
-                        Interlocked.Increment(ref readyCount);
-                        var spin = new SpinWait();
-                        while (!Volatile.Read(ref go)) spin.SpinOnce();
-                        if (startHandicapSpins > 0) Thread.SpinWait(startHandicapSpins);
-                        analyzer.Go(); // Start() throws; the catch block calls Complete() directly.
-                        done.Signal();
-                    });
+                        int index = p;
+                        var factory = new FakePfcToolProcessFactory();
+                        var analyzer = new FileAnalyzer(@"C:\files\a.pdf", Options(), factory);
+                        analyzer.AnalysisComplete += a => Interlocked.Increment(ref completedCounts[index]);
 
-                    ThreadPool.QueueUserWorkItem(_ =>
+                        var process = factory.Last;
+                        process.StartThrowsAfterLaunch = new InvalidOperationException("reader failed to attach");
+
+                        ThreadPool.QueueUserWorkItem(_ =>
+                        {
+                            Interlocked.Increment(ref readyCount);
+                            var spin = new SpinWait();
+                            while (!Volatile.Read(ref go)) spin.SpinOnce();
+                            if (startHandicapSpins > 0) Thread.SpinWait(startHandicapSpins);
+                            analyzer.Go(); // Start() throws; the catch block calls Complete() directly.
+                            done.Signal();
+                        });
+
+                        ThreadPool.QueueUserWorkItem(_ =>
+                        {
+                            Interlocked.Increment(ref readyCount);
+                            var spin = new SpinWait();
+                            while (!Volatile.Read(ref go)) spin.SpinOnce();
+                            if (finishHandicapSpins > 0) Thread.SpinWait(finishHandicapSpins);
+
+                            // Levels this thread's timing against Go()'s exception-throwing
+                            // path without a sleep or a fixed timing assumption -- both pay
+                            // the same kind of one-time cost of throwing and catching an
+                            // exception, on top of the measured handicap above.
+                            try { throw new InvalidOperationException("timing parity"); }
+                            catch { /* discarded -- its only purpose is matching Go()'s cost */ }
+
+                            process.Finish(0, "stdout", "stderr", "exit"); // Drives Complete() via SignalArrived().
+                            done.Signal();
+                        });
+                    }
+
+                    var readySpin = new SpinWait();
+                    while (Volatile.Read(ref readyCount) < PairsPerWave * 2) readySpin.SpinOnce();
+                    Volatile.Write(ref go, true);
+
+                    done.Wait();
+
+                    for (int p = 0; p < PairsPerWave; p++)
                     {
-                        Interlocked.Increment(ref readyCount);
-                        var spin = new SpinWait();
-                        while (!Volatile.Read(ref go)) spin.SpinOnce();
-                        if (finishHandicapSpins > 0) Thread.SpinWait(finishHandicapSpins);
-
-                        // Levels this thread's timing against Go()'s exception-throwing
-                        // path without a sleep or a fixed timing assumption -- both pay
-                        // the same kind of one-time cost of throwing and catching an
-                        // exception, on top of the measured handicap above.
-                        try { throw new InvalidOperationException("timing parity"); }
-                        catch { /* discarded -- its only purpose is matching Go()'s cost */ }
-
-                        process.Finish(0, "stdout", "stderr", "exit"); // Drives Complete() via SignalArrived().
-                        done.Signal();
-                    });
+                        Assert.Equal(1, completedCounts[p]);
+                    }
                 }
-
-                var readySpin = new SpinWait();
-                while (Volatile.Read(ref readyCount) < PairsPerWave * 2) readySpin.SpinOnce();
-                Volatile.Write(ref go, true);
-
-                done.Wait();
-
-                for (int p = 0; p < PairsPerWave; p++)
-                {
-                    Assert.Equal(1, completedCounts[p]);
-                }
+            }
+            finally
+            {
+                ThreadPool.SetMinThreads(minWorkerThreads, minIoThreads);
             }
         }
 
