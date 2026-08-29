@@ -72,15 +72,27 @@
          builds its own viewer of that name, and FileAnalyzer.cs launches this
          one by bare filename from the GUI's working directory. -->
     <TargetName>pfc-tool</TargetName>
+
+    <!-- Pinned relative to $(ProjectDir) rather than $(SolutionDir). The x64
+         configurations previously set no OutDir at all and inherited the C++ default
+         $(SolutionDir)$(Platform)\$(Configuration)\, which resolved to
+         app\x64\$(Configuration)\ only because app.sln happened to sit in app\.
+         Building this project from its own solution would then have silently
+         relocated pfc-tool.exe, and nothing would have failed loudly: the GUI would
+         have gone on launching whatever stale copy was already beside it, and the
+         installer would have packaged that. The Win32 configurations pointed
+         somewhere else again ($(SolutionDir)\bin\$(Configuration)\); all four now
+         share one expression. For x64 it still resolves to
+         app\x64\$(Configuration)\, which is where the GUI's OutputPath points,
+         whichever solution builds it. -->
+    <OutDir>$(ProjectDir)..\$(Platform)\$(Configuration)\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <OutDir>$(SolutionDir)\bin\$(Configuration)\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <OutDir>$(SolutionDir)\bin\$(Configuration)\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
