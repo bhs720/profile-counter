@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using Xunit;
 
 namespace TIFPDFCounter.Tests
@@ -207,6 +208,75 @@ namespace TIFPDFCounter.Tests
             h.Process.Finish(1, "stdout", "stderr", "exit");
             Assert.Equal(1, h.CompletedCount);
             Assert.True(h.Analyzer.Cancelled);
+
+            // The next task's batch tests Cancelled before Failed, so both must be true
+            // when a cancelled process is killed and then exits non-zero.
+            Assert.True(h.Analyzer.Failed);
+        }
+
+        [Fact]
+        public void ADuplicatedEndOfFileSignalDoesNotSubstituteForTheMissingThird()
+        {
+            // signalsOutstanding is one shared counter: without per-signal idempotence, a
+            // signal fired twice would decrement it twice and complete the analysis with
+            // stderr never having ended -- truncating the very message that would explain
+            // a failure.
+            var h = new Harness();
+            h.GoAndReportOnePage();
+
+            h.Process.EndStdout();
+            h.Process.EndStdout();
+            h.Process.Exit(0);
+
+            Assert.Equal(0, h.CompletedCount);
+
+            // Completion still requires the real stderr signal.
+            h.Process.EndStderr();
+            Assert.Equal(1, h.CompletedCount);
+        }
+
+        [Fact]
+        public void CompletesExactlyOnceUnderConcurrentSignalDelivery()
+        {
+            // FakePfcToolProcess raises events synchronously, so the other tests in this
+            // file never exercise the completionRaised CompareExchange or the cross-thread
+            // publication of exitCode under real concurrency. This test fires the three
+            // completion signals from three separate threads released together by a
+            // Barrier, repeated enough times that a race would show up.
+            for (int i = 0; i < 2000; i++)
+            {
+                var factory = new FakePfcToolProcessFactory();
+                var analyzer = new FileAnalyzer(@"C:\files\a.pdf", Options(), factory);
+                int completedCount = 0;
+                analyzer.AnalysisComplete += a => Interlocked.Increment(ref completedCount);
+
+                analyzer.Go();
+                var process = factory.Last;
+                process.EmitStdout("PageCount=1 BookmarkCount=0");
+                process.EmitStdout("Page=1 Size=612.000000,792.000000 Color=0");
+
+                int exitCode = (i % 2 == 0) ? 0 : 7;
+                var barrier = new Barrier(3);
+
+                var t1 = new Thread(() => { barrier.SignalAndWait(); process.EndStdout(); });
+                var t2 = new Thread(() => { barrier.SignalAndWait(); process.EndStderr(); });
+                var t3 = new Thread(() => { barrier.SignalAndWait(); process.Exit(exitCode); });
+
+                t1.Start(); t2.Start(); t3.Start();
+                t1.Join(); t2.Join(); t3.Join();
+
+                Assert.Equal(1, completedCount);
+
+                if (exitCode == 0)
+                {
+                    Assert.False(analyzer.Failed);
+                }
+                else
+                {
+                    Assert.True(analyzer.Failed);
+                    Assert.Contains("exit code: " + exitCode, analyzer.Errors.ToString());
+                }
+            }
         }
 
         [Fact]

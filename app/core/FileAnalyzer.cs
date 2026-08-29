@@ -62,6 +62,20 @@ namespace TIFPDFCounter
         private int completionRaised;
 
         /// <summary>
+        /// Guards each of the three completion signals so a duplicate delivery cannot
+        /// stand in for one that never arrives. <see cref="signalsOutstanding"/> is one
+        /// shared counter, so without these a signal fired twice would decrement it
+        /// twice and complete the analysis with a signal still missing -- most
+        /// dangerously, completing while stderr is still filling and truncating the very
+        /// message explaining a failure. The real <see cref="PfcToolProcess"/> does not
+        /// duplicate signals, but the seam lets any <see cref="IPfcToolProcess"/> stand
+        /// in, and this class cannot vouch for one it did not write.
+        /// </summary>
+        private int stdoutEnded;
+        private int stderrEnded;
+        private int processExited;
+
+        /// <summary>
         /// <see cref="Errors"/> is appended to from the stderr reader and from
         /// <see cref="Fail"/>, which can run on different threads at the same time.
         /// StringBuilder is not thread safe.
@@ -120,7 +134,7 @@ namespace TIFPDFCounter
 
             process = processFactory.Create(options.ToolPath, args);
             process.OutputLineReceived += OnOutputLine;
-            process.OutputEnded += SignalArrived;
+            process.OutputEnded += OnOutputEnded;
             process.ErrorLineReceived += OnErrorLine;
             process.ErrorEnded += OnErrorEnded;
             process.Exited += OnExited;
@@ -182,8 +196,21 @@ namespace TIFPDFCounter
                 AppendError(line);
         }
 
+        private void OnOutputEnded()
+        {
+            // A signal delivered twice must not stand in for one that never arrives.
+            if (Interlocked.Exchange(ref stdoutEnded, 1) != 0)
+                return;
+
+            SignalArrived();
+        }
+
         private void OnErrorEnded()
         {
+            // A signal delivered twice must not stand in for one that never arrives.
+            if (Interlocked.Exchange(ref stderrEnded, 1) != 0)
+                return;
+
             // Waiting for this matters: the grid shows the first 255 characters of
             // Errors when a file fails, and completing before stderr has drained can
             // truncate the very message explaining the failure.
@@ -192,6 +219,10 @@ namespace TIFPDFCounter
 
         private void OnExited(int code)
         {
+            // A signal delivered twice must not stand in for one that never arrives.
+            if (Interlocked.Exchange(ref processExited, 1) != 0)
+                return;
+
             // Exit is only one of the three signals; the readers may still have lines in
             // flight, and whichever signal lands last does the completing.
             exitCode = code;

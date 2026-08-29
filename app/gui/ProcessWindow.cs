@@ -98,7 +98,9 @@ namespace TIFPDFCounter
         {
             UiThread.BeginInvokeIfRequired(this, () =>
             {
-                var dgvr = rowByAnalyzer[instance];
+                DataGridViewRow dgvr;
+                if (!rowByAnalyzer.TryGetValue(instance, out dgvr))
+                    return;
 
                 // Posting rather than blocking means a progress update can arrive after
                 // the file finished and its row was removed. Nothing to draw in that case.
