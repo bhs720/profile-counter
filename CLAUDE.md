@@ -15,17 +15,26 @@ The C# app never links against MuPDF directly — it shells out to `pfc-tool.exe
 
 ## Build
 
-Requires Visual Studio 2019+ (or matching MSBuild) with the C++ desktop workload and the .NET Framework 4.8 targeting pack.
+The two halves have different prerequisites. The C# app needs only the .NET SDK: its net48 reference assemblies come from the `Microsoft.NETFramework.ReferenceAssemblies` package, so no Visual Studio targeting pack is required. `pfc-tool` needs Visual Studio 2019+ (or matching MSBuild) with the C++ desktop workload.
 
 `pfc-tool.vcxproj` pins `PlatformToolset` to v142, matching the mupdf submodule, which hardcodes v142 in all 349 `<PlatformToolset>` entries across its 32 `platform/win32` project files. Artifex's own docs (`docs/reference/cxx-and-derived-bindings.rst`) tell you to install the v142 tools rather than retarget. On a newer Visual Studio that toolset is not present by default and MSBuild fails with **MSB8020**; add the individual component **"MSVC v142 - VS 2019 C++ x64/x86 build tools (v14.29-16.11)"** (VS 2026 still offers it — do not use "Remove out-of-support components", which strips it back out). The ARM, Spectre, ATL/MFC and C++/CLI v142 variants are not needed.
 
-A newer toolset does work if you ever need one: pass `/p:PlatformToolset=`, which the `PreBuildEvent` forwards to the nested mupdf build so `libmupdf.lib` and `pfc-tool.exe` are never compiled with mismatched toolsets. Prefer installing v142 — it keeps a bare `msbuild app\app.sln` working and matches what upstream tests.
+A newer toolset does work if you ever need one: pass `/p:PlatformToolset=`, which the `PreBuildEvent` forwards to the nested mupdf build so `libmupdf.lib` and `pfc-tool.exe` are never compiled with mismatched toolsets. Prefer installing v142 — it keeps a bare `msbuild app\pfc-tool\pfc-tool.sln` working and matches what upstream tests.
 
 `pfc-tool.exe` links the **static** CRT (`/MT`, `/MTd`). It ships as a bare executable next to the GUI with no redistributable, so it must not depend on `MSVCP140.dll`/`VCRUNTIME140.dll`. mupdf's own projects hardcode `MultiThreadedDLL`, so the `PreBuildEvent` injects `static-crt.props` into the nested build via `/p:ForceImportAfterCppTargets` to override them without editing the submodule. If you change the runtime in `pfc-tool.vcxproj`, change `static-crt.props` to match or the link will fail on CRT mismatch. Verify with `dumpbin /dependents app\x64\Release\pfc-tool.exe` — `KERNEL32.dll` should be the only entry.
 
 Clone with submodules, or run `git submodule update --init --recursive` after cloning — `app/pfc-tool/mupdf` and its own nested thirdparty submodules (freetype, harfbuzz, tesseract, etc.) must be checked out before building.
 
-Open `app/app.sln` — it contains the C# app and the native `pfc-tool` project, with the app project depending on `pfc-tool`. Building `pfc-tool` triggers a `PreBuildEvent` that applies the local mupdf patches (see below) and then invokes the submodule's own `mupdf/platform/win32/mupdf.sln` to build `libmupdf` from source (matching `$(Configuration)`/`$(Platform)`), after which `pfc-tool` links against the resulting `libmupdf.lib`. This nested-build approach (rather than folding mupdf's project graph directly into `app.sln`) exists because mupdf's own build scripts (e.g. `bin2coff`'s font-embedding step) hardcode paths relative to `$(SolutionDir)` assuming `mupdf.sln` itself is the entry point — nesting the invocation keeps those assumptions intact instead of relying on `ProjectReference`-based inclusion.
+There are two solutions, and no project belongs to both:
+
+- **`app/ProFileCounter.sln`** — managed only. `dotnet build app\ProFileCounter.sln -c Release` is the normal C# build, and the one to use after changing C# code.
+- **`app/pfc-tool/pfc-tool.sln`** — native only. `msbuild app\pfc-tool\pfc-tool.sln /p:Configuration=Release /p:Platform=x64` builds the analyzer, and is only needed after editing `main.c`, bumping the mupdf tag, or refreshing a patch.
+
+They are separate because the dotnet CLI cannot build C++ projects: the C++ targets are .NET Framework assemblies that MSBuild-on-.NET cannot load, and no flag changes that. While the vcxproj shared a solution with the GUI, `dotnet build` (and later `dotnet test`) could never run against the managed side.
+
+**Both solutions deliberately output to the same `app\x64\$(Configuration)\`**, because `FileAnalyzer` launches `pfc-tool.exe` as a bare relative filename from the GUI's working directory, so the two executables have to sit side by side. Each project derives that directory from `$(ProjectDir)`, never `$(SolutionDir)`, so no solution file is load-bearing: either solution can be moved or renamed without changing what gets built or where it lands. Keep any new `OutDir`/`OutputPath` `$(ProjectDir)`-relative — a `$(SolutionDir)`-relative path relocates output silently rather than failing, and the stale `pfc-tool.exe` left behind in `app\x64\Release\` is what the GUI would then launch and the installer would package.
+
+Building `pfc-tool` triggers a `PreBuildEvent` that applies the local mupdf patches (see below) and then invokes the submodule's own `mupdf/platform/win32/mupdf.sln` to build `libmupdf` from source (matching `$(Configuration)`/`$(Platform)`), after which `pfc-tool` links against the resulting `libmupdf.lib`. This nested-build approach (rather than folding mupdf's project graph directly into `pfc-tool.sln`) exists because mupdf's own build scripts (e.g. `bin2coff`'s font-embedding step) hardcode paths relative to `$(SolutionDir)` assuming `mupdf.sln` itself is the entry point — nesting the invocation keeps those assumptions intact instead of relying on `ProjectReference`-based inclusion.
 
 ## Local mupdf patches
 
@@ -33,11 +42,33 @@ Open `app/app.sln` — it contains the C# app and the native `pfc-tool` project,
 
 These patches are deliberately not submitted upstream. Currently: `0001-test-device-colour-sampling.patch` fixes three defects in mupdf's test device (the device `FileAnalyzer` relies on for colour detection). Two made it sample uninitialised memory, so the same file could be classified black-and-white or colour at random between runs — most importantly, both image-sampling call sites passed the `fz_color_converter` arguments in `(dst, src)` order when the declared order is `(src, dst)`. The third made it sample *undecoded* data: the compressed fast path in `fz_test_fill_image()` assumed `fz_open_compressed_buffer()` returns samples, but the "full image formats" (JPX, PNG, TIFF, BMP, GIF, PNM, PSD, JXR) fall through the switch in `fz_open_image_decomp_stream()` and come back still encoded. A JPX image therefore tripped colour detection on the ASCII `jP` of its JP2 signature box at the second pixel, at any threshold, before anything was decoded. The fast path is now restricted to compressions that genuinely decode to samples; the rest go through `fz_get_pixmap_from_image()`.
 
+`build.ps1` builds both, native first, and is what to use before cutting a release — the split removed the ordering guarantee a single-solution build used to give, that a fresh `pfc-tool.exe` ends up beside a fresh GUI:
+
 ```
-msbuild app\app.sln /p:Configuration=Release /p:Platform=x64
+.\build.ps1 -Configuration Release
 ```
 
-Output lands in `app\x64\Release\` (or `app\x64\Debug\`) containing `ProFile Counter.exe`, `pfc-tool.exe`, and `Newtonsoft.Json.dll` side by side — `ProFile Counter.exe` expects `pfc-tool.exe` in its own working directory (see `FileAnalyzer.cs`, which invokes `pfc-tool.exe` as a bare relative filename). `libmupdf.lib` itself lands under `app\pfc-tool\mupdf\platform\win32\x64\Release\`, per the submodule's own build layout.
+Or each half on its own:
+
+```
+dotnet build app\ProFileCounter.sln -c Release
+msbuild app\pfc-tool\pfc-tool.sln /p:Configuration=Release /p:Platform=x64
+```
+
+The managed build needs no `Platform` argument: the GUI project is x64 and writes to `app\x64\$(Configuration)\` unconditionally.
+
+Output lands in `app\x64\Release\` (or `app\x64\Debug\`) containing `ProFile Counter.exe`, `ProFile Counter.exe.config`, `pfc-tool.exe`, `Newtonsoft.Json.dll`, and `System.Resources.Extensions.dll` plus its dependency closure (`System.Buffers.dll`, `System.Memory.dll`, `System.Numerics.Vectors.dll`, `System.Runtime.CompilerServices.Unsafe.dll`) side by side — `ProFile Counter.exe` expects `pfc-tool.exe` in its own working directory (see `FileAnalyzer.cs`, which invokes `pfc-tool.exe` as a bare relative filename). `libmupdf.lib` itself lands under `app\pfc-tool\mupdf\platform\win32\x64\Release\`, per the submodule's own build layout.
+
+### Why System.Resources.Extensions ships
+
+`MainForm.resx` (`$this.Icon`) and `SettingsWindow.resx` (`panel1.BackgroundImage`) each hold a `System.Drawing` object as `bytearray.base64`. The `GenerateResource` task running on .NET cannot instantiate those types in order to round-trip them, so `dotnet build` fails with **MSB3822**/**MSB3823**. The project sets `GenerateResourceUsePreserializedResources`, which copies the base64 through untouched instead — at the cost of making `System.Resources.Extensions` a *runtime* dependency, because those two `.resources` files now name `DeserializingResourceReader` in their header. The other five are unaffected and are byte-identical to what the pre-SDK build produced.
+
+Two consequences worth knowing before touching any of this:
+
+- **`ProFile Counter.exe.config` is now required at runtime, not merely nice to have.** The `.resources` headers name `System.Resources.Extensions, Version=4.0.0.0` while the shipped assembly is `8.0.0.0`, and the binding redirect reconciling them lives in that config, which the SDK generates from `app.config`. Without it `MainForm.InitializeComponent` throws `FileLoadException` reading its icon, so the app does not start at all. The installer ships it for exactly this reason; before the SDK conversion it did not need to.
+- **The package is pinned to 8.0.0 deliberately.** From 9.0.0 it depends on the split-out NRBF reader and drags `System.Formats.Nrbf`, `System.Reflection.Metadata`, `System.Collections.Immutable` and `Microsoft.Bcl.HashCode` along too — ten files beside the exe instead of five. Nothing here needs `BinaryFormatter` payloads; both resources are TypeConverter-based.
+
+A successful build proves none of this. After changing the resource pipeline, the package version or the installer's file list, launch the app and confirm the main window's title-bar icon and the settings window's panel background still render.
 
 There is no automated test suite in this repo.
 
@@ -82,6 +113,6 @@ Page=<pageNum> Size=<widthPt>,<heightPt> Color=<-1|0|1|2>
 ## Other components
 
 - `docs/` is the GitHub Pages update-check + download site (`index.html`, `latest_version.json`) — `Settings.DefaultUserSettings.AppUpdateJsonUrl` points at it, and `MainForm` polls it on startup when `CheckForProgramUpdates` is set.
-- `installer/script.iss` is an Inno Setup script that packages the Release|x64 output (`ProFile Counter.exe`, `pfc-tool.exe`, `Newtonsoft.Json.dll`) into the distributable installer. Bump `MyAppVersion` there and the csproj `ApplicationVersion` together when cutting a release.
-- **`docs/latest_version.json` is bumped last, and only once the release is genuinely published** — the installer built, uploaded, and linked for download from `docs/index.html`. That file is what triggers the update prompt in every running copy (`MainForm.CheckForProgramUpdates` compares it against `Application.ProductVersion`), so raising it before there is something to download points users at a release that does not exist. A csproj/installer/`index.html` version ahead of `latest_version.json` is the normal in-development state, **not** a bug to fix.
+- `installer/script.iss` is an Inno Setup script that packages the Release|x64 output (`ProFile Counter.exe`, `pfc-tool.exe`, `Newtonsoft.Json.dll`) into the distributable installer. Bump `MyAppVersion` there together with `AssemblyVersion` in `app/gui/Properties/AssemblyInfo.cs` when cutting a release. `AssemblyVersion` is the real product version; the csproj no longer carries one, its old `ApplicationVersion` having been ClickOnce leftover that never matched.
+- **`docs/latest_version.json` is bumped last, and only once the release is genuinely published** — the installer built, uploaded, and linked for download from `docs/index.html`. That file is what triggers the update prompt in every running copy (`MainForm.CheckForProgramUpdates` compares it against `Application.ProductVersion`), so raising it before there is something to download points users at a release that does not exist. An `AssemblyInfo.cs`/installer/`index.html` version ahead of `latest_version.json` is the normal in-development state, **not** a bug to fix.
 - `test files/` contains sample PDFs (including a known mupdf color-detection edge case, per the filename) used for manual testing — there is no automated harness driving them.
