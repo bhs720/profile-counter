@@ -334,8 +334,12 @@ namespace TIFPDFCounter
                     }
 
                     int pageNumber = Convert.ToInt32(matchPageSpec.Groups[1].Value);
-                    decimal width = Convert.ToDecimal(matchPageSpec.Groups[2].Value) / 72m; // Convert points to inches
-                    decimal height = Convert.ToDecimal(matchPageSpec.Groups[3].Value) / 72m; // Convert points to inches
+                    // pfc-tool.exe prints sizes with the C locale, so they must be parsed
+                    // culture-invariantly. Convert.ToDecimal uses CurrentCulture, where a
+                    // comma-decimal culture reads the '.' in "612.000000" as a group
+                    // separator and returns 612000000 -- every page size inflated by 10^6.
+                    decimal width = decimal.Parse(matchPageSpec.Groups[2].Value, CultureInfo.InvariantCulture) / 72m; // Convert points to inches
+                    decimal height = decimal.Parse(matchPageSpec.Groups[3].Value, CultureInfo.InvariantCulture) / 72m; // Convert points to inches
                     int color = Convert.ToInt32(matchPageSpec.Groups[4].Value);
 
                     ColorMode cm;
