@@ -1,8 +1,6 @@
-﻿using System;
+using System;
 using System.Diagnostics;
-using System.Globalization;
 using System.Text;
-using System.Text.RegularExpressions;
 using System.Threading;
 
 namespace TIFPDFCounter
@@ -12,10 +10,18 @@ namespace TIFPDFCounter
     /// </summary>
     public class FileAnalyzer
     {
-        private Process process;
+        private IPfcToolProcess process;
+        private readonly Func<DateTime> clock;
 
         /// <summary>
-        /// Holds the last moment in time when <see cref="ProgressChanged"/> was invoked. 
+        /// The exit code delivered with <see cref="IPfcToolProcess.Exited"/>. Null means
+        /// the process never exited, which is reachable only when Start threw -- and the
+        /// file has already been failed in that case.
+        /// </summary>
+        private int? exitCode;
+
+        /// <summary>
+        /// Holds the last moment in time when <see cref="ProgressChanged"/> was invoked.
         /// Null if the event was never invoked.
         /// </summary>
         private DateTime? lastProgress;
@@ -27,13 +33,12 @@ namespace TIFPDFCounter
 
         /// <summary>
         /// Analysis is finished only once the process has exited AND both redirected
-        /// streams have signalled end-of-file. <see cref="Process.Exited"/> can fire
-        /// before the asynchronous readers have delivered their final lines, so exit
-        /// alone is not enough.
+        /// streams have signalled end-of-file. Exit can fire before the asynchronous
+        /// readers have delivered their final lines, so exit alone is not enough.
         /// <para>
-        /// These are set from several different threads: <see cref="Process.Exited"/>
-        /// and the two stream readers each arrive on a thread pool thread. Nothing here
-        /// blocks waiting for the others -- whichever signal lands last performs the
+        /// These are set from several different threads: the exit notification and the
+        /// two stream readers each arrive on a thread pool thread. Nothing here blocks
+        /// waiting for the others -- whichever signal lands last performs the
         /// completion. An earlier version had the exit handler spin in
         /// <c>Thread.Sleep</c> until stdout finished, which parked a pool thread per
         /// analyzer while the callback that would release it needed a pool thread of its
@@ -93,47 +98,32 @@ namespace TIFPDFCounter
         /// </summary>
         public StringBuilder Errors { get; private set; }
 
-        /// <summary>
-        /// To be used by the caller for tracking purposes. <see cref="FileAnalyzer"/> does not read or modify this object.
-        /// </summary>
-        public Object Tag { get; set; }
-
-        public FileAnalyzer(string filename, bool checkColor, decimal colorThreshold, bool checkPixels)
+        /// <param name="clock">
+        /// Supplies "now" for the <see cref="ProgressChanged"/> throttle. Injected so the
+        /// throttle can be tested without a test that depends on wall-clock timing.
+        /// </param>
+        public FileAnalyzer(string filename, AnalysisOptions options, IPfcToolProcessFactory processFactory, Func<DateTime> clock = null)
         {
+            if (options == null) throw new ArgumentNullException("options");
+            if (processFactory == null) throw new ArgumentNullException("processFactory");
+
             Filename = filename;
             Errors = new StringBuilder();
-            process = new Process();
-            process.StartInfo.FileName = @"pfc-tool.exe";
+            this.clock = clock ?? (() => DateTime.Now);
 
-            // pfc-tool.exe parses the threshold with the C locale, so it must be formatted
-            // culture-invariantly -- a comma-decimal culture would otherwise emit "0,25",
-            // which the tool rejects.
-            string args = string.Format(CultureInfo.InvariantCulture, "\"{0}\" {1} {2}", filename, (checkColor ? colorThreshold.ToString(CultureInfo.InvariantCulture) : "-1"), (checkPixels ? "1" : "0"));
+            string args = PfcToolProtocol.FormatArguments(
+                filename,
+                options.PerformColorAnalysis,
+                options.ColorThreshold,
+                options.CheckImagePixels);
             Debug.Print("pfc-tool.exe {0}", args);
 
-            // Pass the arguments through unchanged. This used to be re-encoded as
-            // Encoding.Default.GetString(Encoding.UTF8.GetBytes(args)), which corrupted
-            // every non-ASCII filename: .NET hands Arguments to CreateProcessW as UTF-16,
-            // so mangling the string first simply put mojibake on the command line.
-            // pfc-tool.exe now reads the real UTF-16 command line through wmain and
-            // converts it to the UTF-8 that mupdf expects.
-            process.StartInfo.Arguments = args;
-            process.StartInfo.CreateNoWindow = true;
-            process.StartInfo.RedirectStandardOutput = true;
-            process.StartInfo.RedirectStandardError = true;
-
-            // pfc-tool.exe writes UTF-8: filenames reach mupdf as UTF-8 and come back
-            // inside its error text. Decoding that as the ANSI code page turned a
-            // copyright sign in a failing path into "?" in the results grid, which reads
-            // as a second fault rather than as the one being reported.
-            process.StartInfo.StandardOutputEncoding = Encoding.UTF8;
-            process.StartInfo.StandardErrorEncoding = Encoding.UTF8;
-
-            process.StartInfo.UseShellExecute = false;
-            process.OutputDataReceived += process_OutputDataReceived;
-            process.ErrorDataReceived += process_ErrorDataReceived;
-            process.Exited += process_Exited;
-            process.EnableRaisingEvents = true;
+            process = processFactory.Create(options.ToolPath, args);
+            process.OutputLineReceived += OnOutputLine;
+            process.OutputEnded += SignalArrived;
+            process.ErrorLineReceived += OnErrorLine;
+            process.ErrorEnded += OnErrorEnded;
+            process.Exited += OnExited;
         }
 
         public void Go()
@@ -141,8 +131,6 @@ namespace TIFPDFCounter
             try
             {
                 process.Start();
-                process.BeginErrorReadLine();
-                process.BeginOutputReadLine();
             }
             catch (Exception ex)
             {
@@ -181,40 +169,32 @@ namespace TIFPDFCounter
         {
             // The process reference is cleared only after completion, but a stream
             // callback can still arrive afterwards and call Fail, so read it once.
-            Process p = process;
+            IPfcToolProcess p = process;
             if (p == null)
                 return;
 
-            try
-            {
-                if (!p.HasExited)
-                {
-                    Debug.Print("Kill FileAnalyzer");
-                    p.Kill();
-                }
-            }
-            catch { /* swallow -- the process may have exited or been disposed already */ }
+            p.Kill();
         }
 
-        private void process_ErrorDataReceived(object sender, DataReceivedEventArgs e)
+        private void OnErrorLine(string line)
         {
-            if (e.Data == null)
-            {
-                // End of stderr. Waiting for this matters: the grid shows the first 255
-                // characters of Errors when a file fails, and completing before stderr
-                // has drained can truncate the very message explaining the failure.
-                SignalArrived();
-                return;
-            }
-
-            if (e.Data.Length > 0)
-                AppendError(e.Data);
+            if (line.Length > 0)
+                AppendError(line);
         }
 
-        private void process_Exited(object sender, EventArgs e)
+        private void OnErrorEnded()
+        {
+            // Waiting for this matters: the grid shows the first 255 characters of
+            // Errors when a file fails, and completing before stderr has drained can
+            // truncate the very message explaining the failure.
+            SignalArrived();
+        }
+
+        private void OnExited(int code)
         {
             // Exit is only one of the three signals; the readers may still have lines in
             // flight, and whichever signal lands last does the completing.
+            exitCode = code;
             SignalArrived();
         }
 
@@ -246,30 +226,21 @@ namespace TIFPDFCounter
             AnalysisComplete.Invoke(this);
 
             // Clear the reference before disposing so a late stream callback that calls
-            // Fail -> Kill sees null rather than a disposed Process.
-            Process p = process;
+            // Fail -> Kill sees null rather than a disposed process.
+            IPfcToolProcess p = process;
             process = null;
             if (p != null)
             {
-                try { p.Close(); p.Dispose(); }
+                try { p.Dispose(); }
                 catch { /* nothing useful left to do at this point */ }
             }
         }
 
         private void Validate()
         {
-            int exitCode = 0;
-            try
+            if (exitCode.HasValue && exitCode.Value != 0)
             {
-                Process p = process;
-                if (p != null)
-                    exitCode = p.ExitCode;
-            }
-            catch { /* treated as a clean exit; the checks below still apply */ }
-
-            if (exitCode != 0)
-            {
-                Fail("pfc-tool.exe exit code: " + exitCode);
+                Fail("pfc-tool.exe exit code: " + exitCode.Value);
             }
 
             if (!Failed && !Cancelled)
@@ -292,49 +263,41 @@ namespace TIFPDFCounter
             }
         }
 
-        void process_OutputDataReceived(object sender, DataReceivedEventArgs e)
+        private void OnOutputLine(string data)
         {
-            if (e.Data == null)
+            var line = PfcToolProtocol.Parse(data);
+
+            switch (line.Kind)
             {
-                // End of stdout. Only null means end-of-file; an empty line is ordinary
-                // data. Treating both alike would signal completion twice and could
-                // finish the file before stderr had drained.
-                SignalArrived();
-            }
-            else
-            {
-                var line = PfcToolProtocol.Parse(e.Data);
+                case PfcToolLineKind.Blank:
+                    // Blank line -- nothing to parse, and not a protocol violation.
+                    break;
 
-                switch (line.Kind)
-                {
-                    case PfcToolLineKind.Blank:
-                        break;
+                case PfcToolLineKind.Header:
+                    Result = new TPCFile(Filename, line.PageCount, line.BookmarkCount);
+                    ProgressChanged.Invoke(this, 0, line.PageCount);
+                    break;
 
-                    case PfcToolLineKind.Header:
-                        Result = new TPCFile(Filename, line.PageCount, line.BookmarkCount);
-                        ProgressChanged.Invoke(this, 0, line.PageCount);
-                        break;
-
-                    case PfcToolLineKind.Page:
-                        if (Result == null)
-                        {
-                            Fail("Page spec came before page count");
-                            return;
-                        }
-
-                        Result.AddPage(line.PageNumber, line.WidthInches, line.HeightInches, line.ColorMode);
-
-                        if (lastProgress == null || (DateTime.Now - lastProgress) > progressInterval)
-                        {
-                            lastProgress = DateTime.Now;
-                            ProgressChanged.Invoke(this, line.PageNumber, Result.PageCount);
-                        }
-                        break;
-
-                    default:
-                        Fail("Text was not in an expected format: " + e.Data);
+                case PfcToolLineKind.Page:
+                    if (Result == null)
+                    {
+                        Fail("Page spec came before page count");
                         return;
-                }
+                    }
+
+                    Result.AddPage(line.PageNumber, line.WidthInches, line.HeightInches, line.ColorMode);
+
+                    DateTime now = clock();
+                    if (lastProgress == null || (now - lastProgress) > progressInterval)
+                    {
+                        lastProgress = now;
+                        ProgressChanged.Invoke(this, line.PageNumber, Result.PageCount);
+                    }
+                    break;
+
+                default:
+                    Fail("Text was not in an expected format: " + data);
+                    return;
             }
         }
     }

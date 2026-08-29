@@ -19,6 +19,9 @@ namespace TIFPDFCounter
         private readonly List<TPCFile> completedFiles;
         private readonly List<FileAnalyzer> failedFiles;
         private readonly int maxProcesses;
+        private readonly AnalysisOptions analysisOptions;
+        private readonly IPfcToolProcessFactory processFactory;
+        private readonly Dictionary<FileAnalyzer, DataGridViewRow> rowByAnalyzer = new Dictionary<FileAnalyzer, DataGridViewRow>();
         private bool batchInProgress;
         private bool batchCancelled;
 
@@ -34,6 +37,13 @@ namespace TIFPDFCounter
             completedFiles = new List<TPCFile>();
             failedFiles = new List<FileAnalyzer>();
             maxProcesses = Math.Max(Environment.ProcessorCount - 1, 1);
+            analysisOptions = new AnalysisOptions
+            {
+                PerformColorAnalysis = Settings.Current.PerformColorAnalysis,
+                ColorThreshold = Settings.Current.ColorThreshold,
+                CheckImagePixels = Settings.Current.CheckImagePixels
+            };
+            processFactory = new PfcToolProcessFactory();
 
             int colIndex = grid.Columns.Add(new DataGridViewProgressColumn());
             grid.Columns[colIndex].Name = "Progress";
@@ -50,10 +60,10 @@ namespace TIFPDFCounter
                 var dgvr = GetRow(filename);
                 dgvr.Cells["Status"].Value = "Processing";
                 
-                var analyzer = new FileAnalyzer(filename, Settings.Current.PerformColorAnalysis, Settings.Current.ColorThreshold, Settings.Current.CheckImagePixels);
-                // save a reference to the DataGridViewRow in the FileAnalyzer.Tag
+                var analyzer = new FileAnalyzer(filename, analysisOptions, processFactory);
+                // save a reference to the DataGridViewRow, keyed by analyzer
                 // this is used later for progress updates
-                analyzer.Tag = dgvr;
+                rowByAnalyzer[analyzer] = dgvr;
 
                 runningProcesses.Add(analyzer);
                 analyzer.ProgressChanged += Analyzer_ProgressChanged;
@@ -88,7 +98,7 @@ namespace TIFPDFCounter
         {
             UiThread.BeginInvokeIfRequired(this, () =>
             {
-                var dgvr = (DataGridViewRow)instance.Tag;
+                var dgvr = rowByAnalyzer[instance];
 
                 // Posting rather than blocking means a progress update can arrive after
                 // the file finished and its row was removed. Nothing to draw in that case.
@@ -106,7 +116,8 @@ namespace TIFPDFCounter
                 instance.ProgressChanged -= Analyzer_ProgressChanged;
                 instance.AnalysisComplete -= Analyzer_AnalysisComplete;
                 runningProcesses.Remove(instance);
-                var dgvr = (DataGridViewRow)instance.Tag;
+                var dgvr = rowByAnalyzer[instance];
+                rowByAnalyzer.Remove(instance);
 
                 if (instance.Cancelled)
                 {
