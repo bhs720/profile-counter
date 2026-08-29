@@ -279,6 +279,21 @@ namespace TIFPDFCounter.Tests
             }
         }
 
+        /// <summary>
+        /// Measured detection rate, recorded here so a future reader does not have to
+        /// re-derive it and does not have to trust an unmeasured claim about it either.
+        /// With Complete()'s <c>Interlocked.CompareExchange(ref completionRaised, 1, 0)</c>
+        /// downgraded to a plain, non-atomic check-then-set, this test FAILED 9 of 10
+        /// runs. With the atomic guard restored (confirmed via a clean
+        /// <c>git diff app/core/FileAnalyzer.cs</c> before each measurement run) it
+        /// PASSED 10 of 10, with a worst observed wall-clock time of 6 seconds. That is
+        /// not proof the guard is correct on every possible interleaving -- the window
+        /// CompareExchange protects is a few CPU cycles wide, no test can force it every
+        /// time, and the 1 undetected run out of 10 is the honest evidence of that. What
+        /// it does establish, and what round 2's report should have said instead of
+        /// claiming reproducibility from two observations: this test now catches the
+        /// regression most of the time it is run, not roughly 1 time in 5.
+        /// </summary>
         [Fact]
         public void CompletesExactlyOnceWhenAStartFailureRacesTheCompletionSignals()
         {
@@ -297,26 +312,36 @@ namespace TIFPDFCounter.Tests
             //
             // The two paths to Complete() are not the same length -- Go()'s path throws
             // and catches a real exception, which costs far more than the three signal
-            // deliveries on the other path -- so a single isolated pair of threads tends
-            // to reach Complete() at consistently different times and rarely overlaps in
-            // the few-instruction window the guard protects. Running many pairs per wave,
-            // released from one shared barrier, relies on ordinary OS scheduler
-            // contention (preemption, core migration) across the whole wave to land some
-            // pair's two Complete() calls together, without asserting anything about
-            // timing.
-            const int Waves = 250;
-            const int PairsPerWave = 12;
+            // deliveries on the other path -- so two threads released together tend to
+            // reach Complete() at measurably different times and rarely overlap in the
+            // few-instruction window the guard protects. CalibrateHandicap measures each
+            // path's average cost with a real Stopwatch and burns the difference as
+            // Thread.SpinWait cycles on whichever path is faster, so the two arrive with
+            // close to the same mean latency; only ordinary scheduler jitter is left to
+            // decide whether a given pair actually overlaps. ThreadPool work items (with
+            // MinThreads raised so none of them queue) replace raw Thread objects so many
+            // more pairs fit in the wall-clock budget than OS thread creation would allow.
+            WarmUpJit();
+            int startHandicapSpins, finishHandicapSpins;
+            CalibrateHandicap(out startHandicapSpins, out finishHandicapSpins);
+
+            int minWorkerThreads, minIoThreads;
+            ThreadPool.GetMinThreads(out minWorkerThreads, out minIoThreads);
+            const int PairsPerWave = 32;
+            ThreadPool.SetMinThreads(Math.Max(minWorkerThreads, PairsPerWave * 2 + 4), minIoThreads);
+
+            const int Waves = 400;
 
             for (int wave = 0; wave < Waves; wave++)
             {
                 var completedCounts = new int[PairsPerWave];
-                var threads = new List<Thread>();
+                var done = new CountdownEvent(PairsPerWave * 2);
 
-                // A busy-spin release rather than a Barrier: every worker thread spins on
-                // a shared volatile flag instead of blocking on a wait handle, so once the
-                // controlling thread below flips it, all workers observe it and leave
-                // their spin loops within a handful of CPU cycles -- no OS wakeup latency
-                // to desynchronize them.
+                // A busy-spin release rather than a Barrier or a WaitHandle: every worker
+                // spins on a shared volatile flag instead of blocking, so once the
+                // controlling thread below flips it, all workers -- already hot, already
+                // running -- observe it and leave their spin loops within a handful of
+                // CPU cycles rather than paying an OS wakeup.
                 int readyCount = 0;
                 bool go = false;
 
@@ -330,43 +355,127 @@ namespace TIFPDFCounter.Tests
                     var process = factory.Last;
                     process.StartThrowsAfterLaunch = new InvalidOperationException("reader failed to attach");
 
-                    threads.Add(new Thread(() =>
+                    ThreadPool.QueueUserWorkItem(_ =>
                     {
                         Interlocked.Increment(ref readyCount);
                         var spin = new SpinWait();
                         while (!Volatile.Read(ref go)) spin.SpinOnce();
+                        if (startHandicapSpins > 0) Thread.SpinWait(startHandicapSpins);
                         analyzer.Go(); // Start() throws; the catch block calls Complete() directly.
-                    }));
+                        done.Signal();
+                    });
 
-                    threads.Add(new Thread(() =>
+                    ThreadPool.QueueUserWorkItem(_ =>
                     {
                         Interlocked.Increment(ref readyCount);
                         var spin = new SpinWait();
                         while (!Volatile.Read(ref go)) spin.SpinOnce();
+                        if (finishHandicapSpins > 0) Thread.SpinWait(finishHandicapSpins);
 
                         // Levels this thread's timing against Go()'s exception-throwing
-                        // path without a sleep or a timing assumption -- both pay the
-                        // same one-time cost of throwing and catching an exception.
+                        // path without a sleep or a fixed timing assumption -- both pay
+                        // the same kind of one-time cost of throwing and catching an
+                        // exception, on top of the measured handicap above.
                         try { throw new InvalidOperationException("timing parity"); }
                         catch { /* discarded -- its only purpose is matching Go()'s cost */ }
 
                         process.Finish(0, "stdout", "stderr", "exit"); // Drives Complete() via SignalArrived().
-                    }));
+                        done.Signal();
+                    });
                 }
-
-                foreach (var t in threads) t.Start();
 
                 var readySpin = new SpinWait();
                 while (Volatile.Read(ref readyCount) < PairsPerWave * 2) readySpin.SpinOnce();
                 Volatile.Write(ref go, true);
 
-                foreach (var t in threads) t.Join();
+                done.Wait();
 
                 for (int p = 0; p < PairsPerWave; p++)
                 {
                     Assert.Equal(1, completedCounts[p]);
                 }
             }
+        }
+
+        /// <summary>
+        /// Runs both completion paths a few times before any timing is measured or any
+        /// race is attempted, so neither one's first-call JIT compilation cost pollutes
+        /// the calibration in <see cref="CalibrateHandicap"/> or the first real wave.
+        /// </summary>
+        private static void WarmUpJit()
+        {
+            for (int i = 0; i < 5; i++)
+            {
+                var goFactory = new FakePfcToolProcessFactory();
+                var goAnalyzer = new FileAnalyzer(@"C:\files\warmup.pdf", Options(), goFactory);
+                goFactory.Last.StartThrowsAfterLaunch = new InvalidOperationException("warmup");
+                goAnalyzer.Go();
+
+                var finishFactory = new FakePfcToolProcessFactory();
+                var finishAnalyzer = new FileAnalyzer(@"C:\files\warmup.pdf", Options(), finishFactory);
+                try { throw new InvalidOperationException("warmup"); }
+                catch { /* discarded */ }
+                finishFactory.Last.Finish(0, "stdout", "stderr", "exit");
+            }
+        }
+
+        /// <summary>
+        /// Measures the average wall-clock cost of Go()'s exception-throwing path versus
+        /// the three-signal Finish() path (with its own leveling exception), and converts
+        /// the difference into a Thread.SpinWait count for whichever path is faster, so
+        /// the two arrive at Complete() with close to the same mean latency. This narrows
+        /// -- it cannot eliminate -- the gap that <see cref="CompletesExactlyOnceWhenAStartFailureRacesTheCompletionSignals"/>
+        /// relies on ordinary scheduler jitter to close the rest of the way.
+        /// </summary>
+        private static void CalibrateHandicap(out int startHandicapSpins, out int finishHandicapSpins)
+        {
+            const int Samples = 40;
+            var sw = new System.Diagnostics.Stopwatch();
+
+            long startTicks = 0;
+            for (int i = 0; i < Samples; i++)
+            {
+                var factory = new FakePfcToolProcessFactory();
+                var analyzer = new FileAnalyzer(@"C:\files\calib.pdf", Options(), factory);
+                factory.Last.StartThrowsAfterLaunch = new InvalidOperationException("calibration");
+
+                sw.Restart();
+                analyzer.Go();
+                sw.Stop();
+                startTicks += sw.ElapsedTicks;
+            }
+
+            long finishTicks = 0;
+            for (int i = 0; i < Samples; i++)
+            {
+                var factory = new FakePfcToolProcessFactory();
+                var analyzer = new FileAnalyzer(@"C:\files\calib.pdf", Options(), factory);
+                var process = factory.Last;
+
+                sw.Restart();
+                try { throw new InvalidOperationException("timing parity"); }
+                catch { /* discarded */ }
+                process.Finish(0, "stdout", "stderr", "exit");
+                sw.Stop();
+                finishTicks += sw.ElapsedTicks;
+            }
+
+            double avgStart = (double)startTicks / Samples;
+            double avgFinish = (double)finishTicks / Samples;
+
+            sw.Restart();
+            const int SpinSample = 200000;
+            Thread.SpinWait(SpinSample);
+            sw.Stop();
+            double ticksPerSpin = sw.ElapsedTicks > 0 ? (double)sw.ElapsedTicks / SpinSample : 0.0001;
+
+            double diff = avgStart - avgFinish;
+            startHandicapSpins = 0;
+            finishHandicapSpins = 0;
+            if (diff > 0)
+                finishHandicapSpins = (int)Math.Min(diff / ticksPerSpin, 200000);
+            else
+                startHandicapSpins = (int)Math.Min(-diff / ticksPerSpin, 200000);
         }
 
         [Fact]
