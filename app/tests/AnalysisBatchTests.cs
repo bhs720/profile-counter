@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using Xunit;
 
 namespace TIFPDFCounter.Tests
@@ -194,6 +195,59 @@ namespace TIFPDFCounter.Tests
             Assert.Equal(1, finished);
             Assert.Equal(1000, batch.Failures.Count);
             Assert.Empty(batch.Results);
+        }
+
+        [Fact]
+        public void BatchFinishedNeverFiresBeforeAPendingFileCompleted()
+        {
+            // OnAnalyzerComplete removes an analyzer from `running` under the lock, but
+            // used to raise FileCompleted only after releasing it. Two analyzers finishing
+            // on different threads could then interleave so the second one's completion
+            // saw an empty `running` and raised BatchFinished before the first one's
+            // FileCompleted had actually run -- breaking the contract that BatchFinished
+            // is always the last event. Completing a real batch of fakes from real threads
+            // is what exercises that interleaving; the assertions below are hard
+            // invariants (no sleeps, no timing guesses), so the outcome is deterministic
+            // for any interleaving the fix actually produces.
+            const int n = 32;
+            var factory = new FakePfcToolProcessFactory();
+            var batch = new AnalysisBatch(Files(n), Options(), factory, maxConcurrency: n);
+
+            int batchFinishedCount = 0;
+            int completedAfterFinish = 0;
+
+            batch.BatchFinished += () => Interlocked.Increment(ref batchFinishedCount);
+            batch.FileCompleted += (item, analyzer) =>
+            {
+                if (Volatile.Read(ref batchFinishedCount) != 0)
+                    Interlocked.Increment(ref completedAfterFinish);
+            };
+
+            batch.Start();
+            Assert.Equal(n, factory.Created.Count);
+
+            // A barrier maximizes how many of the N completions actually land at the same
+            // moment, which is what makes the interleaving above reachable.
+            var barrier = new Barrier(n);
+            var threads = new Thread[n];
+            for (int i = 0; i < n; i++)
+            {
+                var process = factory.Created[i];
+                threads[i] = new Thread(() =>
+                {
+                    barrier.SignalAndWait();
+                    process.Finish(1, "stdout", "stderr", "exit");
+                });
+            }
+
+            foreach (var t in threads) t.Start();
+            foreach (var t in threads) t.Join();
+
+            Assert.Equal(n, factory.Created.Count);
+            Assert.Equal(n, batch.Results.Count + batch.Failures.Count);
+            Assert.Equal(1, batchFinishedCount);
+            Assert.Equal(0, completedAfterFinish);
+            Assert.True(batch.Finished);
         }
 
         [Fact]

@@ -44,6 +44,18 @@ namespace TIFPDFCounter
             // Posting also keeps exceptions thrown by the action out of the catch below,
             // where they were being swallowed; delivered from the message loop they
             // surface normally.
+            if (ctrl.IsDisposed)
+            {
+                // The control is gone. This is reachable: a batch's FileCompleted or
+                // FileProgress can still be in flight on a thread pool thread after
+                // BatchFinished has closed the window and the caller's `using` block has
+                // disposed it. There is nothing left to post to and nothing safe to run --
+                // running the action inline here would touch a disposed DataGridView from
+                // a thread pool thread, an unhandled exception that takes the whole
+                // process down. Drop it instead.
+                return;
+            }
+
             if (ctrl.IsHandleCreated)
             {
                 try
@@ -57,8 +69,12 @@ namespace TIFPDFCounter
             }
             else
             {
-                // No handle to post to, so there is no message loop to wait for. Callers
-                // reach this only before ProcessWindow_Load, where no analyzer exists yet.
+                // No handle to post to, so there is no message loop to wait for. The
+                // IsDisposed check above already ruled out the way a control can be
+                // handle-less by having had one and lost it through closing, so the only
+                // way to reach this branch is the genuine case: before the control's
+                // handle has ever been created, i.e. before ProcessWindow_Load, where no
+                // analyzer exists yet.
                 action();
             }
         }
