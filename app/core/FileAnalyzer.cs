@@ -301,74 +301,39 @@ namespace TIFPDFCounter
                 // finish the file before stderr had drained.
                 SignalArrived();
             }
-            else if (e.Data.Length == 0)
-            {
-                // Blank line -- nothing to parse, and not a protocol violation.
-            }
             else
             {
+                var line = PfcToolProtocol.Parse(e.Data);
 
-                //Debug.Print(e.Data);
-
-                // First line of program output gives:
-                // PageCount=# BookmarkCount=#
-                var matchPageCount = Regex.Match(e.Data, @"^PageCount=(\d+) BookmarkCount=(\d+)$");
-
-                // Subsequent lines give:
-                // Page=# Size=#.#,#.# Color=#
-                var matchPageSpec = Regex.Match(e.Data, @"^Page=(\d+) Size=([\d\.]+),([\d\.]+) Color=(-?\d+)$");
-
-                if (matchPageCount.Success && matchPageCount.Groups.Count == 3)
+                switch (line.Kind)
                 {
-                    int pageCount = Convert.ToInt32(matchPageCount.Groups[1].Value);
-                    int bookmarkCount = Convert.ToInt32(matchPageCount.Groups[2].Value);
-                    Result = new TPCFile(Filename, pageCount, bookmarkCount);
-                    ProgressChanged.Invoke(this, 0, pageCount);
-                }
-                else if (matchPageSpec.Success && matchPageSpec.Groups.Count == 5)
-                {
-                    if (Result == null)
-                    {
-                        Fail("Page spec came before page count");
+                    case PfcToolLineKind.Blank:
+                        break;
+
+                    case PfcToolLineKind.Header:
+                        Result = new TPCFile(Filename, line.PageCount, line.BookmarkCount);
+                        ProgressChanged.Invoke(this, 0, line.PageCount);
+                        break;
+
+                    case PfcToolLineKind.Page:
+                        if (Result == null)
+                        {
+                            Fail("Page spec came before page count");
+                            return;
+                        }
+
+                        Result.AddPage(line.PageNumber, line.WidthInches, line.HeightInches, line.ColorMode);
+
+                        if (lastProgress == null || (DateTime.Now - lastProgress) > progressInterval)
+                        {
+                            lastProgress = DateTime.Now;
+                            ProgressChanged.Invoke(this, line.PageNumber, Result.PageCount);
+                        }
+                        break;
+
+                    default:
+                        Fail("Text was not in an expected format: " + e.Data);
                         return;
-                    }
-
-                    int pageNumber = Convert.ToInt32(matchPageSpec.Groups[1].Value);
-                    // pfc-tool.exe prints sizes with the C locale, so they must be parsed
-                    // culture-invariantly. Convert.ToDecimal uses CurrentCulture, where a
-                    // comma-decimal culture reads the '.' in "612.000000" as a group
-                    // separator and returns 612000000 -- every page size inflated by 10^6.
-                    decimal width = decimal.Parse(matchPageSpec.Groups[2].Value, CultureInfo.InvariantCulture) / 72m; // Convert points to inches
-                    decimal height = decimal.Parse(matchPageSpec.Groups[3].Value, CultureInfo.InvariantCulture) / 72m; // Convert points to inches
-                    int color = Convert.ToInt32(matchPageSpec.Groups[4].Value);
-
-                    ColorMode cm;
-                    switch (color)
-                    {
-                        case 0:
-                            cm = ColorMode.BW;
-                            break;
-                        case 1:
-                        case 2:
-                            cm = ColorMode.Color;
-                            break;
-                        default:
-                            cm = ColorMode.Unknown;
-                            break;
-                    }
-
-                    Result.AddPage(pageNumber, width, height, cm);
-
-                    if (lastProgress == null || (DateTime.Now - lastProgress) > progressInterval)
-                    {
-                        lastProgress = DateTime.Now;
-                        ProgressChanged.Invoke(this, pageNumber, Result.PageCount);
-                    }
-                }
-                else
-                {
-                    Fail("Text was not in an expected format: " + e.Data);
-                    return;
                 }
             }
         }
