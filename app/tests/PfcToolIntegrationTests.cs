@@ -100,32 +100,35 @@ namespace TIFPDFCounter.Tests
             string[] files = Directory.GetFiles(RepoLayout.TestFilesDirectory, "*.pdf");
             Assert.NotEmpty(files);
 
-            var batch = new AnalysisBatch(files, Options(), new PfcToolProcessFactory(), new ThreadPoolDispatcher(), maxConcurrency: 2);
+            // AnalysisBatch is single-threaded by contract: it carries no lock of its own,
+            // and its correctness depends entirely on its dispatcher running one posted
+            // action at a time on a single logical thread. A dispatcher that ran actions on
+            // arbitrary thread pool threads (e.g. via ThreadPool.QueueUserWorkItem) would
+            // let two real analyzers complete at once and mutate `running`/`results` and
+            // call Pump() concurrently -- exactly the race the dispatcher seam exists to
+            // rule out. So this test drains QueueDispatcher from its own thread instead of
+            // blocking on a wait handle: a wait handle has nothing to run the posted
+            // actions, but the child processes still complete on their own thread pool
+            // threads, so RunUntilIdle() is called in a loop until the batch reports
+            // finished, sleeping briefly whenever nothing is queued yet.
+            var dispatcher = new QueueDispatcher();
+            var batch = new AnalysisBatch(files, Options(), new PfcToolProcessFactory(), dispatcher, maxConcurrency: 2);
 
-            using (var done = new ManualResetEventSlim(false))
+            bool finished = false;
+            batch.BatchFinished += () => finished = true;
+            batch.Start();
+
+            var deadline = DateTime.UtcNow.AddSeconds(180);
+            while (!finished && DateTime.UtcNow < deadline)
             {
-                batch.BatchFinished += () => done.Set();
-                batch.Start();
-
-                Assert.True(done.Wait(TimeSpan.FromSeconds(180)), "The batch did not finish within 180 seconds.");
+                if (dispatcher.RunUntilIdle() == 0)
+                    Thread.Sleep(10); // nothing queued yet; a child process is still working
             }
+
+            Assert.True(finished, "The batch did not finish within 180 seconds.");
 
             Assert.Equal(files.Length, batch.Results.Count + batch.Failures.Count);
             Assert.Empty(batch.Failures);
-        }
-
-        /// <summary>
-        /// Marshals onto a thread pool thread, never inline. There is no UI thread to
-        /// post onto here, and unlike <see cref="QueueDispatcher"/> this test has nothing
-        /// driving a manual drain -- it just blocks on a wait handle while real
-        /// pfc-tool.exe child processes run and complete on their own thread pool threads.
-        /// </summary>
-        private sealed class ThreadPoolDispatcher : IDispatcher
-        {
-            public void Post(Action action)
-            {
-                ThreadPool.QueueUserWorkItem(_ => action());
-            }
         }
     }
 }
