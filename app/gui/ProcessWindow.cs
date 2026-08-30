@@ -17,6 +17,7 @@ namespace TIFPDFCounter
         public IReadOnlyList<TPCFile> Results { get { return batch.Results.ToList(); } }
 
         private readonly AnalysisBatch batch;
+        private readonly IDispatcher dispatcher;
         private readonly DataGridViewRow[] rows;
         private bool batchFinished;
         private bool batchCancelled;
@@ -36,6 +37,7 @@ namespace TIFPDFCounter
                 CheckImagePixels = Settings.Current.CheckImagePixels
             };
 
+            dispatcher = new ControlDispatcher(this);
             batch = new AnalysisBatch(filenames, options, new PfcToolProcessFactory());
             rows = new DataGridViewRow[batch.Items.Count];
 
@@ -51,7 +53,7 @@ namespace TIFPDFCounter
 
         private void Batch_FileStarted(BatchItem item)
         {
-            UiThread.BeginInvokeIfRequired(this, () =>
+            dispatcher.Post(() =>
             {
                 rows[item.Index].Cells["Status"].Value = "Processing";
             });
@@ -59,7 +61,7 @@ namespace TIFPDFCounter
 
         private void Batch_FileProgress(BatchItem item, int completed, int total)
         {
-            UiThread.BeginInvokeIfRequired(this, () =>
+            dispatcher.Post(() =>
             {
                 var dgvr = rows[item.Index];
 
@@ -74,7 +76,7 @@ namespace TIFPDFCounter
 
         private void Batch_FileCompleted(BatchItem item, FileAnalyzer analyzer)
         {
-            UiThread.BeginInvokeIfRequired(this, () =>
+            dispatcher.Post(() =>
             {
                 var dgvr = rows[item.Index];
 
@@ -103,7 +105,7 @@ namespace TIFPDFCounter
 
         private void Batch_BatchFinished()
         {
-            UiThread.BeginInvokeIfRequired(this, () =>
+            dispatcher.Post(() =>
             {
                 batchFinished = true;
 
