@@ -9,12 +9,18 @@ namespace TIFPDFCounter
 {
     public partial class ProcessWindow : Form
     {
-        public IReadOnlyList<TPCFile> Results { get { return batch.Results; } }
+        // A snapshot, not the batch's live internal List<T>: batch.Results is safe to
+        // read once the batch has finished, but handing out the live list behind
+        // IReadOnlyList<T> would let a caller observe it still being mutated, or hold a
+        // reference that keeps changing under it. Safe with today's single caller, but a
+        // trap for the next one.
+        public IReadOnlyList<TPCFile> Results { get { return batch.Results.ToList(); } }
 
         private readonly AnalysisBatch batch;
         private readonly DataGridViewRow[] rows;
         private bool batchFinished;
         private bool batchCancelled;
+        private bool closeRequested;
 
         public ProcessWindow()
         {
@@ -130,8 +136,16 @@ namespace TIFPDFCounter
 
         private void ProcessWindow_FormClosing(object sender, FormClosingEventArgs e)
         {
-            if (!batchFinished)
+            // The first close attempt cancels the batch and keeps the window open so the
+            // in-flight children can drain -- FileAnalyzer has no timeout by design.
+            // A second attempt must actually close the window rather than cancelling the
+            // close again: without closeRequested, every attempt re-enters this branch
+            // and sets e.Cancel = true until batchFinished becomes true, which one slow
+            // stray pfc-tool.exe process can delay indefinitely. Since this window is
+            // shown modally, that made the whole application unclosable.
+            if (!batchFinished && !closeRequested)
             {
+                closeRequested = true;
                 e.Cancel = true;
                 batchCancelled = true;
                 batch.Cancel();

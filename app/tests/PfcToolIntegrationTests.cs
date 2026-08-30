@@ -98,6 +98,7 @@ namespace TIFPDFCounter.Tests
         public void ABatchOfEverySampleFileFinishes()
         {
             string[] files = Directory.GetFiles(RepoLayout.TestFilesDirectory, "*.pdf");
+            Assert.NotEmpty(files);
 
             var batch = new AnalysisBatch(files, Options(), new PfcToolProcessFactory(), maxConcurrency: 2);
 

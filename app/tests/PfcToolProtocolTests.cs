@@ -108,6 +108,36 @@ namespace TIFPDFCounter.Tests
         }
 
         [Fact]
+        public void Parse_RejectsAPageSizeThatOverflowsDecimal()
+        {
+            // pfc-tool.exe prints fz_rect floats with %f; a damaged PDF with a
+            // garbage-but-finite MediaBox can print a width larger than decimal.MaxValue.
+            // The regex still matches it, so this must fail the file rather than let
+            // decimal.Parse throw out of Parse and take the process down.
+            var line = PfcToolProtocol.Parse(
+                "Page=1 Size=340282346638528859811704183484516925440.000000,792.000000 Color=0");
+
+            Assert.Equal(PfcToolLineKind.Unrecognized, line.Kind);
+        }
+
+        [Fact]
+        public void Parse_RejectsAMultiDotPageSize()
+        {
+            // "1.2.3" matches the Size pattern's [\d\.]+ but is not a valid number.
+            var line = PfcToolProtocol.Parse("Page=1 Size=1.2.3,792.000000 Color=0");
+
+            Assert.Equal(PfcToolLineKind.Unrecognized, line.Kind);
+        }
+
+        [Fact]
+        public void Parse_RejectsAPageCountThatOverflowsInt32()
+        {
+            var line = PfcToolProtocol.Parse("PageCount=99999999999 BookmarkCount=0");
+
+            Assert.Equal(PfcToolLineKind.Unrecognized, line.Kind);
+        }
+
+        [Fact]
         public void FormatArguments_QuotesTheFilenameAndEmitsTheThreshold()
         {
             string args = PfcToolProtocol.FormatArguments(@"C:\files\a b.pdf", checkColor: true, colorThreshold: 0.25m, checkPixels: true);

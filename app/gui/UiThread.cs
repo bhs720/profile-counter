@@ -6,18 +6,6 @@ namespace TIFPDFCounter
 {
     public static class UiThread
     {
-        public static void InvokeIfRequired(Control ctrl, MethodInvoker action)
-        {
-            if (ctrl.InvokeRequired)
-            {
-                ctrl.Invoke(action);
-            }
-            else
-            {
-                action();
-            }
-        }
-
         /// <summary>
         /// Marshals <paramref name="action"/> onto the UI thread without waiting for it. A
         /// callback that arrives after the window has already closed is dropped rather

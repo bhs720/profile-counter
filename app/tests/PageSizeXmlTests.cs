@@ -20,7 +20,7 @@ namespace TIFPDFCounter.Tests
         {
             var sizes = new List<PageSize>
             {
-                new PageSize("ANSI-A [ 8.5 × 11 ]", 8m, 9m, 10m, 12m)
+                new PageSize("ANSI-A [ 8.5 \u00D7 11 ]", 8m, 9m, 10m, 12m)
             };
 
             string xml;
@@ -36,14 +36,14 @@ namespace TIFPDFCounter.Tests
             Assert.Contains("<MinHeight>10</MinHeight>", xml);
             Assert.Contains("<MaxWidth>9</MaxWidth>", xml);
             Assert.Contains("<MaxHeight>12</MaxHeight>", xml);
-            Assert.Contains("<Name>ANSI-A [ 8.5 × 11 ]</Name>", xml);
+            Assert.Contains("<Name>ANSI-A [ 8.5 \u00D7 11 ]</Name>", xml);
             Assert.Contains("<Active>true</Active>", xml);
         }
 
         [Fact]
         public void PageSize_RoundTripsThroughXmlUnchanged()
         {
-            var original = new PageSize("ARCH-D [ 24 × 36 ]", 23m, 25m, 35m, 37m, active: false);
+            var original = new PageSize("ARCH-D [ 24 \u00D7 36 ]", 23m, 25m, 35m, 37m, active: false);
 
             var serializer = new XmlSerializer(typeof(PageSize));
             string xml;

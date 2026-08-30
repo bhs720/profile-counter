@@ -56,26 +56,55 @@ namespace TIFPDFCounter
             var header = HeaderPattern.Match(line);
             if (header.Success)
             {
-                return PfcToolLine.Header(
-                    Convert.ToInt32(header.Groups[1].Value, CultureInfo.InvariantCulture),
-                    Convert.ToInt32(header.Groups[2].Value, CultureInfo.InvariantCulture));
+                int pageCount, bookmarkCount;
+                if (!TryParseInt32(header.Groups[1].Value, out pageCount) ||
+                    !TryParseInt32(header.Groups[2].Value, out bookmarkCount))
+                {
+                    return PfcToolLine.Unrecognized();
+                }
+
+                return PfcToolLine.Header(pageCount, bookmarkCount);
             }
 
             var page = PagePattern.Match(line);
             if (page.Success)
             {
                 // pfc-tool.exe prints sizes with the C locale, so they must be parsed
-                // culture-invariantly. Convert.ToDecimal uses CurrentCulture, where a
+                // culture-invariantly. Parsing under CurrentCulture, where a
                 // comma-decimal culture reads the '.' in "612.000000" as a group
-                // separator and returns 612000000 -- every page size inflated by 10^6.
-                return PfcToolLine.Page(
-                    Convert.ToInt32(page.Groups[1].Value, CultureInfo.InvariantCulture),
-                    decimal.Parse(page.Groups[2].Value, CultureInfo.InvariantCulture) / 72m,
-                    decimal.Parse(page.Groups[3].Value, CultureInfo.InvariantCulture) / 72m,
-                    ToColorMode(Convert.ToInt32(page.Groups[4].Value, CultureInfo.InvariantCulture)));
+                // separator, would return 612000000 -- every page size inflated by 10^6.
+                int pageNumber, color;
+                decimal widthPt, heightPt;
+                if (!TryParseInt32(page.Groups[1].Value, out pageNumber) ||
+                    !TryParseDecimal(page.Groups[2].Value, out widthPt) ||
+                    !TryParseDecimal(page.Groups[3].Value, out heightPt) ||
+                    !TryParseInt32(page.Groups[4].Value, out color))
+                {
+                    // The regex admits digit strings the type it feeds cannot actually
+                    // represent -- e.g. a damaged PDF's garbage-but-finite MediaBox
+                    // prints as a huge %f that overflows decimal, or a malformed
+                    // multi-dot value like "1.2.3" that matches [\d\.]+ but is not a
+                    // number at all. A line that matches the pattern but cannot be
+                    // converted must fail the file, not throw out of Parse -- an
+                    // uncaught exception here propagates out of FileAnalyzer.OnOutputLine
+                    // on a thread pool thread and takes the whole process down.
+                    return PfcToolLine.Unrecognized();
+                }
+
+                return PfcToolLine.Page(pageNumber, widthPt / 72m, heightPt / 72m, ToColorMode(color));
             }
 
             return PfcToolLine.Unrecognized();
+        }
+
+        private static bool TryParseInt32(string value, out int result)
+        {
+            return int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out result);
+        }
+
+        private static bool TryParseDecimal(string value, out decimal result)
+        {
+            return decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out result);
         }
 
         /// <summary>

@@ -118,6 +118,30 @@ namespace TIFPDFCounter.Tests
         }
 
         [Fact]
+        public void CancellingFromWithinFileStartedLeavesNoStartedProcessBehind()
+        {
+            // Reproduces the exact window Pump() leaves open: running.Add(analyzer, item)
+            // happens under the lock, then FileStarted fires outside it, and only then
+            // is analyzer.Go() called. FileStarted is synchronous, so a subscriber that
+            // cancels the batch from inside that handler lands precisely in that gap --
+            // the same gap Cancel()'s running-snapshot sweep used to miss, because the
+            // analyzer had already been added to `running` by the time FileStarted fired.
+            var factory = new FakePfcToolProcessFactory();
+            var batch = new AnalysisBatch(Files(1), Options(), factory, maxConcurrency: 1);
+
+            int finished = 0;
+            batch.BatchFinished += () => finished++;
+            batch.FileStarted += item => batch.Cancel();
+
+            batch.Start();
+
+            Assert.Single(factory.Created);
+            Assert.False(factory.Created[0].Started);
+            Assert.Equal(1, finished);
+            Assert.True(batch.Finished);
+        }
+
+        [Fact]
         public void AFailedFileIsRecordedAsAFailureAndTheBatchCarriesOn()
         {
             var factory = new FakePfcToolProcessFactory();

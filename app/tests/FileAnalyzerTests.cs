@@ -73,6 +73,10 @@ namespace TIFPDFCounter.Tests
             Assert.NotNull(h.Analyzer.Result);
             Assert.Equal(1, h.Analyzer.Result.PageCount);
             Assert.Single(h.Analyzer.Result.Pages);
+
+            // A regression that dropped the dispose would leak a Process handle per
+            // file -- invisible on a handful of files, fatal on a batch of thousands.
+            Assert.True(h.Process.Disposed);
         }
 
         [Fact]
@@ -215,6 +219,26 @@ namespace TIFPDFCounter.Tests
         }
 
         [Fact]
+        public void CancelBeforeGoNeverStartsTheProcessAndCompletesExactlyOnce()
+        {
+            // AnalysisBatch.Pump adds an analyzer to its running set, then raises
+            // FileStarted, and only then calls Go() -- all outside its lock. Cancel()
+            // can run on another thread in that window and, before this fix, would kill
+            // a process that had not started yet (PfcToolProcess.Kill swallows the
+            // InvalidOperationException from an unstarted Process.HasExited), after
+            // which Go() started the child anyway and it ran to completion despite the
+            // batch having been cancelled.
+            var h = new Harness();
+
+            h.Analyzer.Cancel();
+            h.Analyzer.Go();
+
+            Assert.False(h.Process.Started);
+            Assert.True(h.Analyzer.Cancelled);
+            Assert.Equal(1, h.CompletedCount);
+        }
+
+        [Fact]
         public void ADuplicatedEndOfFileSignalDoesNotSubstituteForTheMissingThird()
         {
             // signalsOutstanding is one shared counter: without per-signal idempotence, a
@@ -334,10 +358,20 @@ namespace TIFPDFCounter.Tests
             // every test that runs after it. The try/finally restores the captured
             // original values on every exit path, including a failed Assert or an
             // unexpected exception, not just the successful one.
-            ThreadPool.SetMinThreads(Math.Max(minWorkerThreads, PairsPerWave * 2 + 4), minIoThreads);
+            bool raisedFloor = ThreadPool.SetMinThreads(Math.Max(minWorkerThreads, PairsPerWave * 2 + 4), minIoThreads);
             try
             {
-                const int Waves = 400;
+                // If the runtime refused to raise the floor, the pool injects new worker
+                // threads at its own slow throttle (roughly 2/second) instead of having
+                // all of them ready up front. Running the full wave count in that case
+                // would have every wave's spinners occupy every existing worker while
+                // the pool drip-feeds the rest, stalling each wave for many seconds and
+                // the whole test for minutes rather than hanging outright -- cut the run
+                // down drastically instead. This remains a best-effort race detector, not
+                // the sole guarantee of correctness (see
+                // CompletesExactlyOnceUnderConcurrentSignalDelivery for the same race
+                // exercised without relying on an elevated ThreadPool floor).
+                int Waves = raisedFloor ? 400 : 5;
 
                 for (int wave = 0; wave < Waves; wave++)
                 {

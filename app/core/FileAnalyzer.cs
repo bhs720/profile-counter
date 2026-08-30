@@ -76,6 +76,32 @@ namespace TIFPDFCounter
         private int processExited;
 
         /// <summary>
+        /// Guards which of Go() and Cancel() gets to decide whether the child process
+        /// ever starts. Cancel() can run on another thread between the batch registering
+        /// this analyzer and Go() actually being called -- the window AnalysisBatch.Pump
+        /// leaves open between <c>running.Add</c> and <c>analyzer.Go()</c> so that
+        /// FileStarted can be raised outside the lock. Without this, Cancel() calls
+        /// Kill() on a process that has not been started yet -- which
+        /// PfcToolProcess.Kill() swallows, because <c>Process.HasExited</c> throws
+        /// InvalidOperationException on an unstarted process -- and Go() then starts the
+        /// child anyway, so it runs to completion despite the batch having been
+        /// cancelled.
+        /// <para>
+        /// One atomic CompareExchange decides the outcome regardless of which method
+        /// reaches it first: whichever of Go()/Cancel() transitions this out of
+        /// <see cref="StateInitial"/> wins. If Cancel() wins, Go() never calls
+        /// Process.Start() at all and completes the analyzer as cancelled directly. If
+        /// Go() wins, the process is genuinely started and Cancel()'s subsequent Kill()
+        /// call is the real, effective one.
+        /// </para>
+        /// </summary>
+        private int state;
+
+        private const int StateInitial = 0;
+        private const int StateCancelled = 1;
+        private const int StateStarted = 2;
+
+        /// <summary>
         /// <see cref="Errors"/> is appended to from the stderr reader and from
         /// <see cref="Fail"/>, which can run on different threads at the same time.
         /// StringBuilder is not thread safe.
@@ -142,6 +168,19 @@ namespace TIFPDFCounter
 
         public void Go()
         {
+            // Claim the right to start the process. If this loses -- meaning Cancel()
+            // already claimed StateCancelled first -- the process must never start:
+            // complete the analyzer as cancelled directly instead of calling
+            // Process.Start(). Reusing Complete() keeps completionRaised as the single
+            // guard on AnalysisComplete and lets the batch still account for this file,
+            // so BatchFinished remains reachable.
+            if (Interlocked.CompareExchange(ref state, StateStarted, StateInitial) != StateInitial)
+            {
+                Debug.Print("Go FileAnalyzer: already cancelled, not starting the process");
+                Complete();
+                return;
+            }
+
             try
             {
                 process.Start();
@@ -160,7 +199,17 @@ namespace TIFPDFCounter
         {
             Debug.Print("Cancel FileAnalyzer");
             Cancelled = true;
-            Kill();
+
+            // Claim the right to start the process before Go() does. If this wins --
+            // state was still StateInitial -- Go() will see StateCancelled when it runs
+            // (now or later) and skip Process.Start() entirely; there is nothing to kill
+            // because nothing was ever started. If this loses, Go() already claimed
+            // StateStarted, so the process is genuinely running (or about to be) and
+            // Kill() is the real, effective cancellation.
+            if (Interlocked.CompareExchange(ref state, StateCancelled, StateInitial) != StateInitial)
+            {
+                Kill();
+            }
         }
 
         private void Fail(string message)
