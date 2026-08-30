@@ -27,7 +27,7 @@ Clone with submodules, or run `git submodule update --init --recursive` after cl
 
 There are two solutions, and no project belongs to both:
 
-- **`app/ProFileCounter.sln`** — managed only. `dotnet build app\ProFileCounter.sln -c Release` is the normal C# build, and the one to use after changing C# code.
+- **`app/ProFileCounter.sln`** — managed only: the WinForms GUI, the `ProFileCounter.Core` class library it depends on, and the xUnit test project. `dotnet build app\ProFileCounter.sln -c Release` is the normal C# build; `dotnet test app\ProFileCounter.sln` is what to run after changing C# code.
 - **`app/pfc-tool/pfc-tool.sln`** — native only. `msbuild app\pfc-tool\pfc-tool.sln /p:Configuration=Release /p:Platform=x64` builds the analyzer, and is only needed after editing `main.c`, bumping the mupdf tag, or refreshing a patch.
 
 They are separate because the dotnet CLI cannot build C++ projects: the C++ targets are .NET Framework assemblies that MSBuild-on-.NET cannot load, and no flag changes that. While the vcxproj shared a solution with the GUI, `dotnet build` (and later `dotnet test`) could never run against the managed side.
@@ -57,7 +57,7 @@ msbuild app\pfc-tool\pfc-tool.sln /p:Configuration=Release /p:Platform=x64
 
 The managed build needs no `Platform` argument: the GUI project is x64 and writes to `app\x64\$(Configuration)\` unconditionally.
 
-Output lands in `app\x64\Release\` (or `app\x64\Debug\`) containing `ProFile Counter.exe`, `ProFile Counter.exe.config`, `pfc-tool.exe`, `Newtonsoft.Json.dll`, and `System.Resources.Extensions.dll` plus its dependency closure (`System.Buffers.dll`, `System.Memory.dll`, `System.Numerics.Vectors.dll`, `System.Runtime.CompilerServices.Unsafe.dll`) side by side — `ProFile Counter.exe` expects `pfc-tool.exe` in its own working directory (see `FileAnalyzer.cs`, which invokes `pfc-tool.exe` as a bare relative filename). `libmupdf.lib` itself lands under `app\pfc-tool\mupdf\platform\win32\x64\Release\`, per the submodule's own build layout.
+Output lands in `app\x64\Release\` (or `app\x64\Debug\`) containing `ProFile Counter.exe`, `ProFile Counter.exe.config`, `pfc-tool.exe`, `ProFileCounter.Core.dll`, `Newtonsoft.Json.dll`, and `System.Resources.Extensions.dll` plus its dependency closure (`System.Buffers.dll`, `System.Memory.dll`, `System.Numerics.Vectors.dll`, `System.Runtime.CompilerServices.Unsafe.dll`) side by side — `ProFile Counter.exe` expects `pfc-tool.exe` in its own working directory (see `FileAnalyzer.cs`, which invokes `pfc-tool.exe` as a bare relative filename). `libmupdf.lib` itself lands under `app\pfc-tool\mupdf\platform\win32\x64\Release\`, per the submodule's own build layout.
 
 ### Why System.Resources.Extensions ships
 
@@ -70,7 +70,7 @@ Two consequences worth knowing before touching any of this:
 
 A successful build proves none of this. After changing the resource pipeline, the package version or the installer's file list, launch the app and confirm the main window's title-bar icon and the settings window's panel background still render.
 
-There is no automated test suite in this repo.
+The managed side has an automated test suite; see **Tests** below. The native tool does not — it is covered by the `pfc-regression` skill against a shipped baseline.
 
 ## What pfc-tool will and won't open
 
@@ -84,7 +84,7 @@ This is a blocklist of container formats rather than an allowlist of known-good 
 
 ## The pfc-tool.exe stdout protocol
 
-Defined by `app/pfc-tool/main.c` on the producer side and parsed by `app/gui/FileAnalyzer.cs` (regex-matched) on the consumer side. If you change one, update the other:
+Defined by `app/pfc-tool/main.c` on the producer side and parsed by `PfcToolProtocol` (`app/core`) on the consumer side. If you change one, update the other:
 
 ```
 pfc-tool.exe "<filename>" <colorThreshold|-1> <checkPixels 0|1>
@@ -101,10 +101,68 @@ Page=<pageNum> Size=<widthPt>,<heightPt> Color=<-1|0|1|2>
 
 ## Processing pipeline (C# side)
 
-1. `MainForm` handles drag-drop, recursively expands dropped folders (`DiscoverFiles`), and opens a `ProcessWindow` with the resulting file list.
-2. `ProcessWindow` runs a bounded worker pool (`maxProcesses = ProcessorCount - 1`) over a `Queue<string>` of file paths, spawning one `FileAnalyzer` (i.e. one `pfc-tool.exe` process) per in-flight file and refilling the pool as each completes (`NextFile`/`Analyzer_AnalysisComplete`). All UI mutation from analyzer callbacks goes through `Utility.InvokeIfRequired` since `Process` events fire on background threads.
-3. Each `FileAnalyzer` owns one `pfc-tool.exe` child process, streams stdout via `OutputDataReceived`, and raises `ProgressChanged`/`AnalysisComplete` events; a `TPCFile` (`File.cs`) accumulates `TPCFilePage` (`FilePage.cs`) entries as they arrive.
-4. Completed `TPCFile` results feed `PageSizeCounter` (`PageSizeCounter.cs`), which buckets pages into user-defined `PageSize` ranges (`PageSize.cs`, `IsMatch` checks both width×height orientations) plus color/BW/unknown counts, for the summary grid in `MainForm`.
+The managed side is two assemblies. `app/gui` is the WinForms application;
+`app/core` (`ProFileCounter.Core.dll`) holds the whole analysis pipeline with no UI
+dependency, so it can be tested without building a Form. **Both use the
+`TIFPDFCounter` namespace** — namespaces span assemblies, so moving a type between them
+changes no `using` statement. Only duplicate *type names* would collide, which is why
+the GUI's WinForms thread helpers are `UiThread` and only the non-UI half kept the name
+`Utility`.
+
+1. `MainForm` handles drag-drop, recursively expands dropped folders (`DiscoverFiles`),
+   filters out files already summarized, and opens a `ProcessWindow` with the result.
+2. `ProcessWindow` (`app/gui`) is now UI only. It builds `AnalysisOptions` from
+   `Settings.Current`, hands the file list to an `AnalysisBatch`, and paints what the
+   batch reports. Every batch event is marshalled with `UiThread.BeginInvokeIfRequired`
+   — never the blocking `Invoke`; see the comment on that method for the starvation it
+   prevents.
+3. `AnalysisBatch` (`app/core`) runs the bounded worker pool: at most
+   `ProcessorCount - 1` analyzers at once, refilled as each completes, finishing only
+   when the queue and the running set are both empty. It guards its own state with a
+   lock and raises events on whatever thread completed the work. Its pump has an
+   explicit re-entrancy guard, because `FileAnalyzer.Go()` raises `AnalysisComplete`
+   synchronously when the process fails to start. Events carry a `BatchItem` (index plus
+   filename), which is how the GUI maps a result back to a grid row. It also collapses
+   duplicate paths, so no file can be counted twice in the totals.
+4. `FileAnalyzer` (`app/core`) owns one `pfc-tool.exe` child through the
+   `IPfcToolProcess` seam, accumulates a `TPCFile` from the parsed lines, and completes
+   only once all three signals — stdout EOF, stderr EOF and process exit — have arrived.
+   There is deliberately no timeout; see the comments in the class. The real seam
+   implementation is `PfcToolProcess`; tests substitute a fake.
+5. `PfcToolProtocol` (`app/core`) is the pure half: it formats the command line and
+   parses one line of stdout, with no state and no process. The culture-invariance and
+   the unsigned `Size=` pattern both live here.
+6. Completed `TPCFile` results feed `PageSizeCounter` (`app/core`), which buckets pages
+   into user-defined `PageSize` ranges (`IsMatch` checks both orientations) plus
+   colour/BW/unknown counts, for the summary grid in `MainForm`.
+
+## Tests
+
+```
+dotnet test app\ProFileCounter.sln
+```
+
+**Run this after changing any C# code.** It builds `app/core` and `app/tests` only — not
+the WinForms project, and not the native tool. The tests are in `app/tests`
+(xUnit v2, net48) and reference `app/core` alone, which is what keeps them fast and
+keeps `dotnet test` off the WinForms build.
+
+Most are hermetic: a fake `IPfcToolProcess` drives the analyzer's three completion
+signals in every order, a fake factory drives the batch's pool invariants, and the
+protocol parser is tested as a pure function under a comma-decimal culture.
+
+A handful of integration tests run the real `pfc-tool.exe` over `test files/`. They find
+it by walking up to `app\x64\{Release,Debug}\` and **report as skipped, not failed, when
+it has not been built** — so a C# change does not require the multi-minute native build.
+They assert protocol conformance only. Colour classification is verified by the
+`pfc-regression` skill against a shipped baseline; do not duplicate it here.
+
+Neither new project sets `PlatformTarget`. `dotnet test` on net48 may host the tests at
+x86, and an x64-marked `ProFileCounter.Core.dll` would fail to load. The GUI stays x64.
+
+`app/tests` deliberately keeps the default `bin\` output rather than the
+`app\x64\$(Configuration)\` the other two projects share: the installer packages from
+that directory, and the xunit and testhost assemblies must never land in it.
 
 ## Settings
 

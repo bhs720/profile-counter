@@ -39,6 +39,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Source: "..\app\x64\Release\ProFile Counter.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\app\x64\Release\pfc-tool.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\app\x64\Release\Newtonsoft.Json.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\app\x64\Release\ProFileCounter.Core.dll"; DestDir: "{app}"; Flags: ignoreversion
 ; MainForm.resx ($this.Icon) and SettingsWindow.resx (panel1.BackgroundImage) are
 ; embedded as preserialized resources, so reading them back needs
 ; System.Resources.Extensions and its dependency closure. MainForm's
