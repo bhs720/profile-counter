@@ -30,6 +30,17 @@ namespace TIFPDFCounter
             new Regex(@"^Page=(\d+) Size=([\d\.]+),([\d\.]+) Color=(-?\d+)$", RegexOptions.Compiled);
 
         /// <summary>
+        /// A page count above this is treated as a protocol violation rather than a
+        /// number. TPCFile passes the count to a List capacity, and an implausible one
+        /// throws OutOfMemoryException on the stdout reader thread, where nothing catches
+        /// it and the process dies. The bound is arbitrary but far above any real
+        /// document -- the largest file in the problem-file corpus is in the low
+        /// thousands of pages, and a capacity of a million allocates about 8 MB rather
+        /// than throwing.
+        /// </summary>
+        private const int MaxPlausiblePageCount = 1000000;
+
+        /// <summary>
         /// Builds the command line. The threshold must be formatted culture-invariantly:
         /// pfc-tool.exe parses it with the C locale, and a comma-decimal culture would
         /// otherwise emit "0,25", which the tool rejects.
@@ -62,6 +73,9 @@ namespace TIFPDFCounter
                 {
                     return PfcToolLine.Unrecognized();
                 }
+
+                if (pageCount > MaxPlausiblePageCount)
+                    return PfcToolLine.Unrecognized();
 
                 return PfcToolLine.Header(pageCount, bookmarkCount);
             }

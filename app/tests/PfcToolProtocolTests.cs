@@ -138,6 +138,28 @@ namespace TIFPDFCounter.Tests
         }
 
         [Fact]
+        public void Parse_RejectsAnImplausiblePageCount()
+        {
+            // PageCount=2000000000 parses as an int, and TPCFile then does
+            // new List<TPCFilePage>(pageCount), which throws OutOfMemoryException on the
+            // stdout reader thread -- taking the process down and losing the whole batch.
+            // Treat an implausible count as a protocol violation so it fails the file,
+            // which is what every other malformed line does.
+            var line = PfcToolProtocol.Parse("PageCount=2000000000 BookmarkCount=0");
+
+            Assert.Equal(PfcToolLineKind.Unrecognized, line.Kind);
+        }
+
+        [Fact]
+        public void Parse_AcceptsALargeButPlausiblePageCount()
+        {
+            var line = PfcToolProtocol.Parse("PageCount=1000000 BookmarkCount=0");
+
+            Assert.Equal(PfcToolLineKind.Header, line.Kind);
+            Assert.Equal(1000000, line.PageCount);
+        }
+
+        [Fact]
         public void FormatArguments_QuotesTheFilenameAndEmitsTheThreshold()
         {
             string args = PfcToolProtocol.FormatArguments(@"C:\files\a b.pdf", checkColor: true, colorThreshold: 0.25m, checkPixels: true);
