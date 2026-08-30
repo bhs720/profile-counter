@@ -197,18 +197,30 @@ namespace TIFPDFCounter.Tests
             Assert.Empty(batch.Results);
         }
 
+        /// <summary>
+        /// Completes 32 fakes concurrently from 32 real threads and checks the pool comes
+        /// out consistent: every file is accounted for exactly once and BatchFinished
+        /// fires exactly once.
+        /// </summary>
+        /// <remarks>
+        /// This is a smoke test of the lock and the pump handoff under genuine
+        /// concurrency, not a reliable regression test for the specific
+        /// BatchFinished-before-a-pending-FileCompleted race that <c>pendingCompletions</c>
+        /// exists to close. That race's window is only the width of the two delegate
+        /// unsubscribes bracketing the FileCompleted call in OnAnalyzerComplete, and a
+        /// Barrier does not reliably land two of these 32 threads inside a window that
+        /// narrow: with <c>pendingCompletions</c> deliberately reverted, this exact test
+        /// still passed 15/15 in isolation, and the same scenario run in-process passed
+        /// 2000/2000. Only an artificial delay inserted into OnAnalyzerComplete reliably
+        /// exposed the bug (200/200 violations with a 1ms delay, 0/200 without it) -- that
+        /// experiment, not this test, is the real evidence the invariant holds. Do not add
+        /// a delay or any other hook to production code to make this test bite; a test
+        /// that is honest about what it does and does not prove is worth more than one
+        /// that is believed to prove more than it does.
+        /// </remarks>
         [Fact]
-        public void BatchFinishedNeverFiresBeforeAPendingFileCompleted()
+        public void ConcurrentCompletionSmokeTest()
         {
-            // OnAnalyzerComplete removes an analyzer from `running` under the lock, but
-            // used to raise FileCompleted only after releasing it. Two analyzers finishing
-            // on different threads could then interleave so the second one's completion
-            // saw an empty `running` and raised BatchFinished before the first one's
-            // FileCompleted had actually run -- breaking the contract that BatchFinished
-            // is always the last event. Completing a real batch of fakes from real threads
-            // is what exercises that interleaving; the assertions below are hard
-            // invariants (no sleeps, no timing guesses), so the outcome is deterministic
-            // for any interleaving the fix actually produces.
             const int n = 32;
             var factory = new FakePfcToolProcessFactory();
             var batch = new AnalysisBatch(Files(n), Options(), factory, maxConcurrency: n);
@@ -227,7 +239,9 @@ namespace TIFPDFCounter.Tests
             Assert.Equal(n, factory.Created.Count);
 
             // A barrier maximizes how many of the N completions actually land at the same
-            // moment, which is what makes the interleaving above reachable.
+            // moment. It widens the odds of hitting the OnAnalyzerComplete race described
+            // above, but -- per the class remarks -- not reliably: treat a pass here as a
+            // consistency check, not as proof the race is closed.
             var barrier = new Barrier(n);
             var threads = new Thread[n];
             for (int i = 0; i < n; i++)
@@ -247,6 +261,37 @@ namespace TIFPDFCounter.Tests
             Assert.Equal(n, batch.Results.Count + batch.Failures.Count);
             Assert.Equal(1, batchFinishedCount);
             Assert.Equal(0, completedAfterFinish);
+            Assert.True(batch.Finished);
+        }
+
+        [Fact]
+        public void AThrowingFileCompletedHandlerDoesNotWedgeTheBatch()
+        {
+            // pendingCompletions must come back down even when a FileCompleted subscriber
+            // throws, or the finish condition in Pump() can never be satisfied again.
+            // Confirmed by reverting the `finally` around the decrement and re-running this
+            // exact scenario: without it, BatchFinished is never raised and Finished stays
+            // false, which in the GUI makes the window impossible to close (FormClosing
+            // sets e.Cancel = true while !batchFinished).
+            var factory = new FakePfcToolProcessFactory();
+            var batch = new AnalysisBatch(Files(2), Options(), factory, maxConcurrency: 2);
+
+            int batchFinishedRaised = 0;
+            batch.BatchFinished += () => batchFinishedRaised++;
+
+            bool first = true;
+            batch.FileCompleted += (item, analyzer) =>
+            {
+                if (first) { first = false; throw new InvalidOperationException("boom"); }
+            };
+
+            batch.Start();
+            Assert.Equal(2, factory.Created.Count);
+
+            Assert.Throws<InvalidOperationException>(() => factory.Created[0].Finish(1, "stdout", "stderr", "exit"));
+            factory.Created[1].Finish(1, "stdout", "stderr", "exit");
+
+            Assert.Equal(1, batchFinishedRaised);
             Assert.True(batch.Finished);
         }
 

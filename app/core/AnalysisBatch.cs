@@ -173,6 +173,14 @@ namespace TIFPDFCounter
             // returns immediately without doing anything, BatchFinished never fires, and
             // (in the GUI) ProcessWindow_FormClosing's `while (!batchFinished)` guard makes
             // the window impossible to close.
+            //
+            // `clearedInLock` tells the `finally` whether that already happened under the
+            // same lock as the "no work" decision below. Without this flag the `finally`
+            // would double-clear on that path: it clears the flag first and returns, and
+            // in the window between that lock's release and the `finally` running, another
+            // thread can legitimately enter Pump and set `pumping` back to true -- the
+            // stale `finally` would then clear it out from under that live pumper.
+            bool clearedInLock = false;
             try
             {
                 while (true)
@@ -199,9 +207,9 @@ namespace TIFPDFCounter
                             // `pumping` under the same lock as this decision is what makes
                             // that safe: a completion either mutates that state before this
                             // check, and so is seen here, or arrives after `pumping` is
-                            // false and pumps itself. The redundant clear in `finally` below
-                            // is a no-op on this path.
+                            // false and pumps itself.
                             pumping = false;
+                            clearedInLock = true;
                             return;
                         }
                     }
@@ -245,7 +253,8 @@ namespace TIFPDFCounter
             }
             finally
             {
-                lock (gate) { pumping = false; }
+                if (!clearedInLock)
+                    lock (gate) { pumping = false; }
             }
         }
 
@@ -305,9 +314,21 @@ namespace TIFPDFCounter
             analyzer.ProgressChanged -= OnAnalyzerProgress;
             analyzer.AnalysisComplete -= OnAnalyzerComplete;
 
-            FileCompleted(item, analyzer);
-
-            lock (gate) { pendingCompletions--; }
+            try
+            {
+                FileCompleted(item, analyzer);
+            }
+            finally
+            {
+                // Must come back down even if a subscriber's handler throws. Without the
+                // finally, a throwing FileCompleted leaves pendingCompletions permanently
+                // above zero, so the finish condition in Pump() can never be satisfied
+                // again -- exactly the "wedged forever" failure Minor 1 exists to prevent,
+                // reintroduced on this field instead of `pumping`. In the GUI that makes
+                // the window impossible to close, since ProcessWindow_FormClosing sets
+                // e.Cancel = true while !batchFinished.
+                lock (gate) { pendingCompletions--; }
+            }
 
             Pump();
         }
