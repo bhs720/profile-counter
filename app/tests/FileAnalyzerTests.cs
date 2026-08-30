@@ -269,21 +269,24 @@ namespace TIFPDFCounter.Tests
             // threads released together by a Barrier, repeated enough times that a race
             // would show up.
             //
-            // Measured against Complete()'s Interlocked.CompareExchange(ref
-            // completionRaised, 1, 0) downgraded to a non-atomic check-then-set: 0 of 10
-            // runs failed, at both 200 and 2000 iterations of this loop. That is not a
-            // detection gap iteration count can close -- all three signals here land via
-            // SignalArrived()'s Interlocked.Decrement(ref signalsOutstanding), and atomic
-            // decrement guarantees exactly one thread ever observes the result reach
-            // zero, so exactly one thread ever calls Complete() per iteration and
-            // completionRaised is never actually contended by this test. (The deleted
-            // CompletesExactlyOnceWhenAStartFailureRacesTheCompletionSignals test could
-            // reach it from two independent paths -- Go()'s catch block and
-            // SignalArrived() -- which is what made that guard's race reachable at all.)
-            // What this test does verify under real concurrency, and continues to verify
-            // at 200 iterations same as before: exactly one AnalysisComplete per file,
-            // and that exitCode written by the exit-signal thread is correctly visible
-            // to whichever thread's decrement finishes the file.
+            // What this covers: signalsOutstanding's atomicity under genuine thread
+            // scheduling, and that exitCode written by the exit-signal thread is correctly
+            // visible to whichever thread's decrement finishes the file. An earlier
+            // mutation check confirmed this: downgrading SignalArrived()'s
+            // Interlocked.Decrement(ref signalsOutstanding) to a non-atomic decrement made
+            // this test fail.
+            //
+            // What this does NOT cover: Complete()'s
+            // Interlocked.CompareExchange(ref completionRaised, 1, 0) guard. Measured with
+            // that guard deliberately downgraded to a non-atomic check-then-set, this test
+            // detected 0 of 10 runs, at both 200 and 2000 iterations of this loop -- not a
+            // gap iteration count can close, because all three signals here land via the
+            // same atomic signalsOutstanding decrement, which guarantees exactly one thread
+            // ever reaches Complete() per iteration, so completionRaised is never actually
+            // contended by this test. See the XML doc on completionRaised in
+            // app/core/FileAnalyzer.cs for the real race that guard protects (Go()'s catch
+            // block racing SignalArrived() on a failed process start) and why no test in
+            // this suite currently reaches it.
             for (int i = 0; i < 200; i++)
             {
                 var factory = new FakePfcToolProcessFactory();

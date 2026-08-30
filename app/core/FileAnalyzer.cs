@@ -58,6 +58,38 @@ namespace TIFPDFCounter
         /// Completion is defined by the three signals rather than by the clock, so it is
         /// correct regardless of how long any of it takes.
         /// </para>
+        /// <para>
+        /// Complete() has two callers: SignalArrived(), when the signal counter reaches
+        /// zero, and Go()'s catch block, when Start() throws. Those two can genuinely race:
+        /// PfcToolProcess.Start() runs Process.Start(), then BeginErrorReadLine(), then
+        /// BeginOutputReadLine(). If the child process launches but a later step throws
+        /// (e.g. a reader fails to attach), the child is already live and
+        /// EnableRaisingEvents is already set, so Exited can fire on a thread pool thread
+        /// while Go()'s catch is still running Complete() on the calling thread -- both
+        /// racing for this CompareExchange.
+        /// </para>
+        /// <para>
+        /// That contended path is deliberately untested. The window is a few CPU
+        /// instructions wide; a test that hit it reliably needed Stopwatch calibration of
+        /// both code paths, a process-wide ThreadPool minimum-thread-count mutation, and
+        /// roughly 25,600 spun work items to reach 8-9 detections out of 10 -- and was
+        /// removed as disproportionate to what it protected. The concurrency test that
+        /// remains in FileAnalyzerTests.cs
+        /// (CompletesExactlyOnceUnderConcurrentSignalDelivery) does NOT cover this guard:
+        /// measured with this CompareExchange deliberately downgraded to a non-atomic
+        /// check-then-set, it detected 0 of 10 runs, at both 200 and 2000 iterations of its
+        /// loop, because all three of its signals go through SignalArrived()'s
+        /// Interlocked.Decrement(ref signalsOutstanding), which already guarantees exactly
+        /// one thread ever observes the decrement reach zero -- so exactly one thread ever
+        /// reaches this CompareExchange there, and it is never actually contended. The
+        /// Go()-catch-vs-SignalArrived() race above is a different path into Complete() that
+        /// no test in the suite currently reaches.
+        /// </para>
+        /// <para>
+        /// This guard is reasoned-correct, not test-verified for its contended path. Do not
+        /// downgrade the CompareExchange on the strength of a green test run -- the suite
+        /// cannot currently tell you if you broke it.
+        /// </para>
         /// </summary>
         private int completionRaised;
 
