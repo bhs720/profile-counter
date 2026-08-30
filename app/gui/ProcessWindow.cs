@@ -38,7 +38,7 @@ namespace TIFPDFCounter
             };
 
             dispatcher = new ControlDispatcher(this);
-            batch = new AnalysisBatch(filenames, options, new PfcToolProcessFactory());
+            batch = new AnalysisBatch(filenames, options, new PfcToolProcessFactory(), dispatcher);
             rows = new DataGridViewRow[batch.Items.Count];
 
             batch.FileStarted += Batch_FileStarted;
@@ -53,71 +53,59 @@ namespace TIFPDFCounter
 
         private void Batch_FileStarted(BatchItem item)
         {
-            dispatcher.Post(() =>
-            {
-                rows[item.Index].Cells["Status"].Value = "Processing";
-            });
+            rows[item.Index].Cells["Status"].Value = "Processing";
         }
 
         private void Batch_FileProgress(BatchItem item, int completed, int total)
         {
-            dispatcher.Post(() =>
-            {
-                var dgvr = rows[item.Index];
+            var dgvr = rows[item.Index];
 
-                // Posting rather than blocking means a progress update can arrive after
-                // the file finished and its row was removed. Nothing to draw in that case.
-                if (dgvr.DataGridView == null || total <= 0)
-                    return;
+            // Posting rather than blocking means a progress update can arrive after
+            // the file finished and its row was removed. Nothing to draw in that case.
+            if (dgvr.DataGridView == null || total <= 0)
+                return;
 
-                dgvr.Cells["Progress"].Value = completed * 100 / total;
-            });
+            dgvr.Cells["Progress"].Value = completed * 100 / total;
         }
 
         private void Batch_FileCompleted(BatchItem item, FileAnalyzer analyzer)
         {
-            dispatcher.Post(() =>
+            var dgvr = rows[item.Index];
+
+            if (analyzer.Cancelled)
             {
-                var dgvr = rows[item.Index];
+                dgvr.Cells["Status"].Value = "Cancelled";
+            }
+            else if (analyzer.Failed)
+            {
+                string errorMessage = "Failed: " + analyzer.Errors.ToString(0, Math.Min(analyzer.Errors.Length, 255));
+                dgvr.Cells["Status"].Value = errorMessage;
+                dgvr.DefaultCellStyle.BackColor = Color.DarkRed;
+                dgvr.DefaultCellStyle.ForeColor = Color.White;
+                dgvr.DefaultCellStyle.SelectionBackColor = Color.Red;
+                dgvr.DefaultCellStyle.SelectionForeColor = Color.White;
+            }
+            else
+            {
+                System.Diagnostics.Debug.Assert(analyzer.Result != null);
+                grid.Rows.Remove(dgvr);
+            }
 
-                if (analyzer.Cancelled)
-                {
-                    dgvr.Cells["Status"].Value = "Cancelled";
-                }
-                else if (analyzer.Failed)
-                {
-                    string errorMessage = "Failed: " + analyzer.Errors.ToString(0, Math.Min(analyzer.Errors.Length, 255));
-                    dgvr.Cells["Status"].Value = errorMessage;
-                    dgvr.DefaultCellStyle.BackColor = Color.DarkRed;
-                    dgvr.DefaultCellStyle.ForeColor = Color.White;
-                    dgvr.DefaultCellStyle.SelectionBackColor = Color.Red;
-                    dgvr.DefaultCellStyle.SelectionForeColor = Color.White;
-                }
-                else
-                {
-                    System.Diagnostics.Debug.Assert(analyzer.Result != null);
-                    grid.Rows.Remove(dgvr);
-                }
-
-                ScrollToFirstProcessingRow();
-            });
+            ScrollToFirstProcessingRow();
         }
 
         private void Batch_BatchFinished()
         {
-            dispatcher.Post(() =>
-            {
-                batchFinished = true;
+            batchFinished = true;
 
-                if (batchCancelled || batch.Failures.Count == 0)
-                {
-                    Close();
-                }
-                else
-                {
-                    Text = "Processing finished with errors";
-                }
-            });
+            if (batchCancelled || batch.Failures.Count == 0)
+            {
+                Close();
+            }
+            else
+            {
+                Text = "Processing finished with errors";
+            }
         }
 
         private void ScrollToFirstProcessingRow()

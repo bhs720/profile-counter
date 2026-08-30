@@ -100,7 +100,7 @@ namespace TIFPDFCounter.Tests
             string[] files = Directory.GetFiles(RepoLayout.TestFilesDirectory, "*.pdf");
             Assert.NotEmpty(files);
 
-            var batch = new AnalysisBatch(files, Options(), new PfcToolProcessFactory(), maxConcurrency: 2);
+            var batch = new AnalysisBatch(files, Options(), new PfcToolProcessFactory(), new ThreadPoolDispatcher(), maxConcurrency: 2);
 
             using (var done = new ManualResetEventSlim(false))
             {
@@ -112,6 +112,20 @@ namespace TIFPDFCounter.Tests
 
             Assert.Equal(files.Length, batch.Results.Count + batch.Failures.Count);
             Assert.Empty(batch.Failures);
+        }
+
+        /// <summary>
+        /// Marshals onto a thread pool thread, never inline. There is no UI thread to
+        /// post onto here, and unlike <see cref="QueueDispatcher"/> this test has nothing
+        /// driving a manual drain -- it just blocks on a wait handle while real
+        /// pfc-tool.exe child processes run and complete on their own thread pool threads.
+        /// </summary>
+        private sealed class ThreadPoolDispatcher : IDispatcher
+        {
+            public void Post(Action action)
+            {
+                ThreadPool.QueueUserWorkItem(_ => action());
+            }
         }
     }
 }

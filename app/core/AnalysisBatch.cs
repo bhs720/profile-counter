@@ -9,17 +9,14 @@ namespace TIFPDFCounter
     /// at most <c>maxConcurrency</c> pfc-tool.exe processes alive at once and refilling
     /// the pool as each one finishes.
     /// <para>
-    /// Events are raised on whatever thread completed the work -- an analyzer's
-    /// callbacks arrive on thread pool threads -- and never while the lock is held. A
-    /// UI caller marshals them onto its own thread in its handlers. It must not do so by
-    /// blocking: the UI thread does real work per completed file, and the threads it
-    /// would block are the very thread pool threads the redirected stream readers need
-    /// in order to deliver their end-of-file callbacks.
+    /// All state lives on the dispatcher's thread. Analyzer callbacks arrive on thread
+    /// pool threads and are posted straight onto it, so there is no lock here and no
+    /// re-entrancy guard: Go() completing synchronously posts rather than re-entering the
+    /// pump. The dispatcher must never run an action inline; see <see cref="IDispatcher"/>.
     /// </para>
     /// </summary>
     public sealed class AnalysisBatch
     {
-        private readonly object gate = new object();
         private readonly Queue<BatchItem> queue = new Queue<BatchItem>();
         private readonly Dictionary<FileAnalyzer, BatchItem> running = new Dictionary<FileAnalyzer, BatchItem>();
         private readonly List<BatchItem> items = new List<BatchItem>();
@@ -28,33 +25,9 @@ namespace TIFPDFCounter
 
         private readonly AnalysisOptions options;
         private readonly IPfcToolProcessFactory processFactory;
+        private readonly IDispatcher dispatcher;
         private readonly Func<DateTime> clock;
         private readonly int maxConcurrency;
-
-        /// <summary>
-        /// True while a thread is inside <see cref="Pump"/>. A completion that arrives
-        /// during a pump -- including one raised synchronously by Go() -- records nothing
-        /// more than "there is work to do" and returns, because the running pump
-        /// re-evaluates on its next iteration. Without this, Go() raising
-        /// AnalysisComplete on the calling thread would re-enter the pump from inside
-        /// itself, nesting one frame set per queued file: a missing pfc-tool.exe and a
-        /// few hundred dropped files would overflow the stack, which .NET cannot catch.
-        /// </summary>
-        private bool pumping;
-
-        /// <summary>
-        /// Count of analyzers that have been removed from <see cref="running"/> but whose
-        /// <see cref="FileCompleted"/> has not yet returned. Incremented under <see
-        /// cref="gate"/> at removal, decremented under <see cref="gate"/> once the event
-        /// has fully returned. Folded into the finish condition so <see
-        /// cref="BatchFinished"/> cannot be raised while any <see cref="FileCompleted"/>
-        /// is still in flight -- without this, two analyzers finishing on different
-        /// threads could interleave so that the second one's completion sees an empty
-        /// <see cref="running"/> and raises BatchFinished before the first one's
-        /// FileCompleted has actually run, breaking the contract that BatchFinished is
-        /// always the last event.
-        /// </summary>
-        private int pendingCompletions;
 
         private bool cancelled;
         private bool finished;
@@ -71,15 +44,18 @@ namespace TIFPDFCounter
             IEnumerable<string> filenames,
             AnalysisOptions options,
             IPfcToolProcessFactory processFactory,
+            IDispatcher dispatcher,
             int maxConcurrency = 0,
             Func<DateTime> clock = null)
         {
             if (filenames == null) throw new ArgumentNullException("filenames");
             if (options == null) throw new ArgumentNullException("options");
             if (processFactory == null) throw new ArgumentNullException("processFactory");
+            if (dispatcher == null) throw new ArgumentNullException("dispatcher");
 
             this.options = options;
             this.processFactory = processFactory;
+            this.dispatcher = dispatcher;
             this.clock = clock;
             this.maxConcurrency = maxConcurrency > 0 ? maxConcurrency : Math.Max(Environment.ProcessorCount - 1, 1);
 
@@ -123,138 +99,63 @@ namespace TIFPDFCounter
         /// <summary>Analyzers that failed. Safe to read once the batch has finished.</summary>
         public IReadOnlyList<FileAnalyzer> Failures { get { return failures; } }
 
-        public bool Finished
-        {
-            get { lock (gate) { return finished; } }
-        }
+        public bool Finished { get { return finished; } }
 
         public void Start()
         {
-            Pump();
+            dispatcher.Post(Pump);
         }
 
         /// <summary>
-        /// Drains the queue and kills whatever is running. The batch finishes once the
-        /// cancelled analyzers have delivered their completion signals.
+        /// Drains the queue and kills whatever is running. Asynchronous: the work is
+        /// dispatched, so it does not take effect inside the caller's stack frame. The
+        /// batch finishes once the cancelled analyzers have delivered their completions.
         /// </summary>
         public void Cancel()
         {
             System.Diagnostics.Debug.Print("Cancel batch");
 
-            List<FileAnalyzer> toCancel;
-            lock (gate)
+            dispatcher.Post(() =>
             {
                 cancelled = true;
                 queue.Clear();
-                toCancel = new List<FileAnalyzer>(running.Keys);
-            }
 
-            foreach (var analyzer in toCancel)
-                analyzer.Cancel();
+                foreach (var analyzer in new List<FileAnalyzer>(running.Keys))
+                    analyzer.Cancel();
 
-            // Nothing was running, so no completion will arrive to finish the batch.
-            Pump();
+                // Nothing was running, so no completion will arrive to finish the batch.
+                Pump();
+            });
         }
 
         private void Pump()
         {
-            lock (gate)
+            while (!cancelled && running.Count < maxConcurrency && queue.Count > 0)
             {
-                if (pumping)
-                    return;
+                BatchItem item = queue.Dequeue();
+                FileAnalyzer analyzer = CreateAnalyzer(item);
+                running.Add(analyzer, item);
 
-                pumping = true;
-            }
-
-            // Belt and braces around Minor 1: CreateAnalyzer, FileStarted, BatchFinished
-            // and Go() are all capable of running caller-supplied or third-party code this
-            // class cannot vouch for. If any of it throws, `pumping` must still come back
-            // down -- otherwise it stays stuck at true forever, every later Pump() call
-            // returns immediately without doing anything, BatchFinished never fires, and
-            // (in the GUI) ProcessWindow_FormClosing's `while (!batchFinished)` guard makes
-            // the window impossible to close.
-            //
-            // `clearedInLock` tells the `finally` whether that already happened under the
-            // same lock as the "no work" decision below. Without this flag the `finally`
-            // would double-clear on that path: it clears the flag first and returns, and
-            // in the window between that lock's release and the `finally` running, another
-            // thread can legitimately enter Pump and set `pumping` back to true -- the
-            // stale `finally` would then clear it out from under that live pumper.
-            bool clearedInLock = false;
-            try
-            {
-                while (true)
+                // Go() in a finally: an analyzer that reached `running` MUST be started,
+                // or nothing will ever deliver a completion for it and the batch can never
+                // finish. Raising FileStarted first preserves the event order the GUI
+                // paints from. Go() can raise AnalysisComplete on this very thread when
+                // the process fails to start, but that completion is posted, so it cannot
+                // re-enter this loop.
+                try
                 {
-                    BatchItem item = null;
-                    bool raiseFinished = false;
-
-                    lock (gate)
-                    {
-                        if (!cancelled && running.Count < maxConcurrency && queue.Count > 0)
-                        {
-                            item = queue.Dequeue();
-                        }
-                        else if (running.Count == 0 && queue.Count == 0 && pendingCompletions == 0 && !finished)
-                        {
-                            finished = true;
-                            raiseFinished = true;
-                        }
-                        else
-                        {
-                            // Either the pool is full, or work is still in flight (running,
-                            // or already removed from running but its FileCompleted has not
-                            // returned yet) and its completion will pump again. Releasing
-                            // `pumping` under the same lock as this decision is what makes
-                            // that safe: a completion either mutates that state before this
-                            // check, and so is seen here, or arrives after `pumping` is
-                            // false and pumps itself.
-                            pumping = false;
-                            clearedInLock = true;
-                            return;
-                        }
-                    }
-
-                    if (raiseFinished)
-                    {
-                        BatchFinished();
-                        return;
-                    }
-
-                    // Construct outside the lock: building the argument string and the
-                    // child process launch info has no business running in the critical
-                    // section every completion contends on.
-                    var analyzer = CreateAnalyzer(item);
-
-                    bool started;
-                    lock (gate)
-                    {
-                        // Cancel() can run between the dequeue above and here. Its sweep of
-                        // `running` snapshots whatever is registered at that moment, so an
-                        // analyzer added afterwards would be missed and never killed.
-                        // Re-check here and, if so, drop this item instead of starting it --
-                        // the same outcome as an item that was still sitting in the queue
-                        // when Cancel() cleared it.
-                        started = !cancelled;
-                        if (started)
-                            running.Add(analyzer, item);
-                    }
-
-                    if (!started)
-                        continue;
-
                     FileStarted(item);
-
-                    // Go() can raise AnalysisComplete on this very thread, when the process
-                    // fails to start. That re-enters OnAnalyzerComplete -> Pump, which sees
-                    // `pumping` and returns; this loop then picks the work up on its next
-                    // iteration instead of recursing.
+                }
+                finally
+                {
                     analyzer.Go();
                 }
             }
-            finally
+
+            if (!finished && running.Count == 0 && queue.Count == 0)
             {
-                if (!clearedInLock)
-                    lock (gate) { pumping = false; }
+                finished = true;
+                BatchFinished();
             }
         }
 
@@ -268,31 +169,28 @@ namespace TIFPDFCounter
 
         private void OnAnalyzerProgress(FileAnalyzer analyzer, int completed, int total)
         {
-            BatchItem item;
-            lock (gate)
+            dispatcher.Post(() =>
             {
+                BatchItem item;
                 if (!running.TryGetValue(analyzer, out item))
                     return;
-            }
 
-            FileProgress(item, completed, total);
+                FileProgress(item, completed, total);
+            });
         }
 
         private void OnAnalyzerComplete(FileAnalyzer analyzer)
         {
-            BatchItem item;
-            lock (gate)
+            dispatcher.Post(() =>
             {
+                BatchItem item;
                 if (!running.TryGetValue(analyzer, out item))
                     return;
 
                 running.Remove(analyzer);
 
-                // Marks this completion as in flight until FileCompleted has actually
-                // returned, below. See the field comment on pendingCompletions: this is
-                // what stops BatchFinished from being raised while this call is still on
-                // its way to invoking FileCompleted.
-                pendingCompletions++;
+                analyzer.ProgressChanged -= OnAnalyzerProgress;
+                analyzer.AnalysisComplete -= OnAnalyzerComplete;
 
                 // Cancelled is checked before Failed on purpose. A cancelled analyzer's
                 // process is killed, so it exits non-zero and is marked failed too; it is
@@ -309,28 +207,18 @@ namespace TIFPDFCounter
                 {
                     results.Add(analyzer.Result);
                 }
-            }
 
-            analyzer.ProgressChanged -= OnAnalyzerProgress;
-            analyzer.AnalysisComplete -= OnAnalyzerComplete;
-
-            try
-            {
-                FileCompleted(item, analyzer);
-            }
-            finally
-            {
-                // Must come back down even if a subscriber's handler throws. Without the
-                // finally, a throwing FileCompleted leaves pendingCompletions permanently
-                // above zero, so the finish condition in Pump() can never be satisfied
-                // again -- exactly the "wedged forever" failure Minor 1 exists to prevent,
-                // reintroduced on this field instead of `pumping`. In the GUI that makes
-                // the window impossible to close, since ProcessWindow_FormClosing sets
-                // e.Cancel = true while !batchFinished.
-                lock (gate) { pendingCompletions--; }
-            }
-
-            Pump();
+                // Pump in a finally so a throwing subscriber cannot stall the pool: with a
+                // queue behind it, a skipped Pump is permanent.
+                try
+                {
+                    FileCompleted(item, analyzer);
+                }
+                finally
+                {
+                    Pump();
+                }
+            });
         }
     }
 }

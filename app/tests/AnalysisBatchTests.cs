@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading;
 using Xunit;
 
 namespace TIFPDFCounter.Tests
@@ -26,155 +25,192 @@ namespace TIFPDFCounter.Tests
             p.Finish(0, "stdout", "stderr", "exit");
         }
 
+        private sealed class Harness
+        {
+            public readonly FakePfcToolProcessFactory Factory = new FakePfcToolProcessFactory();
+            public readonly QueueDispatcher Dispatcher = new QueueDispatcher();
+            public readonly AnalysisBatch Batch;
+
+            public Harness(IEnumerable<string> files, int maxConcurrency)
+            {
+                Batch = new AnalysisBatch(files, Options(), Factory, Dispatcher, maxConcurrency);
+            }
+
+            /// <summary>Starts the batch and drains the dispatcher.</summary>
+            public void Start()
+            {
+                Batch.Start();
+                Dispatcher.RunUntilIdle();
+            }
+
+            /// <summary>Completes one fake process, then drains the posted completion.</summary>
+            public void Complete(int index)
+            {
+                SucceedOnePage(Factory.Created[index]);
+                Dispatcher.RunUntilIdle();
+            }
+        }
+
         [Fact]
         public void NeverExceedsTheConcurrencyCap()
         {
-            var factory = new FakePfcToolProcessFactory();
-            var batch = new AnalysisBatch(Files(10), Options(), factory, maxConcurrency: 3);
+            var h = new Harness(Files(10), maxConcurrency: 3);
+            h.Start();
 
-            batch.Start();
-
-            Assert.Equal(3, factory.Created.Count);
+            Assert.Equal(3, h.Factory.Created.Count);
         }
 
         [Fact]
         public void RefillsThePoolAsEachFileCompletes()
         {
-            var factory = new FakePfcToolProcessFactory();
-            var batch = new AnalysisBatch(Files(5), Options(), factory, maxConcurrency: 2);
+            var h = new Harness(Files(5), maxConcurrency: 2);
+            h.Start();
+            Assert.Equal(2, h.Factory.Created.Count);
 
-            batch.Start();
-            Assert.Equal(2, factory.Created.Count);
+            h.Complete(0);
+            Assert.Equal(3, h.Factory.Created.Count);
 
-            SucceedOnePage(factory.Created[0]);
-            Assert.Equal(3, factory.Created.Count);
-
-            SucceedOnePage(factory.Created[1]);
-            Assert.Equal(4, factory.Created.Count);
+            h.Complete(1);
+            Assert.Equal(4, h.Factory.Created.Count);
         }
 
         [Fact]
         public void FinishesOnlyWhenTheQueueAndTheRunningSetAreBothEmpty()
         {
-            var factory = new FakePfcToolProcessFactory();
-            var batch = new AnalysisBatch(Files(3), Options(), factory, maxConcurrency: 2);
-
+            var h = new Harness(Files(3), maxConcurrency: 2);
             int finished = 0;
-            batch.BatchFinished += () => finished++;
+            h.Batch.BatchFinished += () => finished++;
 
-            batch.Start();
-            SucceedOnePage(factory.Created[0]);
+            h.Start();
+            h.Complete(0);
             Assert.Equal(0, finished);
-            SucceedOnePage(factory.Created[1]);
+            h.Complete(1);
             Assert.Equal(0, finished);
 
-            // The third and last file.
-            SucceedOnePage(factory.Created[2]);
+            h.Complete(2);
             Assert.Equal(1, finished);
-            Assert.True(batch.Finished);
-            Assert.Equal(3, batch.Results.Count);
-            Assert.Empty(batch.Failures);
+            Assert.True(h.Batch.Finished);
+            Assert.Equal(3, h.Batch.Results.Count);
+            Assert.Empty(h.Batch.Failures);
         }
 
         [Fact]
         public void AnEmptyFileListFinishesImmediately()
         {
-            // ProcessWindow never finished one of these: NextFile did nothing, no
-            // analyzer ever completed, and FinishBatch was never reached. It stayed
-            // latent only because MainForm guards against an empty drop.
-            var factory = new FakePfcToolProcessFactory();
-            var batch = new AnalysisBatch(new List<string>(), Options(), factory);
-
+            // ProcessWindow never finished one of these: NextFile did nothing, no analyzer
+            // ever completed, and FinishBatch was never reached. It stayed latent only
+            // because MainForm guards against an empty drop.
+            var h = new Harness(new List<string>(), maxConcurrency: 0);
             int finished = 0;
-            batch.BatchFinished += () => finished++;
+            h.Batch.BatchFinished += () => finished++;
 
-            batch.Start();
+            h.Start();
 
             Assert.Equal(1, finished);
-            Assert.True(batch.Finished);
-            Assert.Empty(factory.Created);
+            Assert.True(h.Batch.Finished);
+            Assert.Empty(h.Factory.Created);
+        }
+
+        [Fact]
+        public void BatchFinishedIsAlwaysRaisedAfterEveryFileCompleted()
+        {
+            // The ordering pendingCompletions used to defend is now structural:
+            // FileCompleted and the Pump that may raise BatchFinished run in the same
+            // dispatched action, in that order.
+            var h = new Harness(Files(3), maxConcurrency: 3);
+            var order = new List<string>();
+            h.Batch.FileCompleted += (item, analyzer) => order.Add("completed:" + item.Index);
+            h.Batch.BatchFinished += () => order.Add("finished");
+
+            h.Start();
+            h.Complete(0);
+            h.Complete(1);
+            h.Complete(2);
+
+            Assert.Equal("finished", order.Last());
+            Assert.Equal(3, order.Count(x => x.StartsWith("completed:")));
         }
 
         [Fact]
         public void CancelDrainsTheQueueAndCancelsWhatIsRunning()
         {
-            var factory = new FakePfcToolProcessFactory();
-            var batch = new AnalysisBatch(Files(6), Options(), factory, maxConcurrency: 2);
+            var h = new Harness(Files(6), maxConcurrency: 2);
+            h.Start();
+            Assert.Equal(2, h.Factory.Created.Count);
 
-            batch.Start();
-            Assert.Equal(2, factory.Created.Count);
+            h.Batch.Cancel();
+            h.Dispatcher.RunUntilIdle();
 
-            batch.Cancel();
+            Assert.True(h.Factory.Created[0].Killed);
+            Assert.True(h.Factory.Created[1].Killed);
 
-            Assert.True(factory.Created[0].Killed);
-            Assert.True(factory.Created[1].Killed);
+            h.Factory.Created[0].Finish(1, "stdout", "stderr", "exit");
+            h.Factory.Created[1].Finish(1, "stdout", "stderr", "exit");
+            h.Dispatcher.RunUntilIdle();
 
-            // No further files are started as the cancelled ones drain.
-            factory.Created[0].Finish(1, "stdout", "stderr", "exit");
-            factory.Created[1].Finish(1, "stdout", "stderr", "exit");
-
-            Assert.Equal(2, factory.Created.Count);
-            Assert.True(batch.Finished);
+            Assert.Equal(2, h.Factory.Created.Count);
+            Assert.True(h.Batch.Finished);
         }
 
         [Fact]
-        public void CancellingFromWithinFileStartedLeavesNoStartedProcessBehind()
+        public void CancellingFromWithinFileStartedStillKillsTheProcessAndFinishes()
         {
-            // Reproduces the exact window Pump() leaves open: running.Add(analyzer, item)
-            // happens under the lock, then FileStarted fires outside it, and only then
-            // is analyzer.Go() called. FileStarted is synchronous, so a subscriber that
-            // cancels the batch from inside that handler lands precisely in that gap --
-            // the same gap Cancel()'s running-snapshot sweep used to miss, because the
-            // analyzer had already been added to `running` by the time FileStarted fired.
-            var factory = new FakePfcToolProcessFactory();
-            var batch = new AnalysisBatch(Files(1), Options(), factory, maxConcurrency: 1);
-
+            // BEHAVIOUR CHANGE, deliberate. Cancel() now posts, so it no longer takes
+            // effect inside the caller's stack frame: the process for the file being
+            // started does start, and is then killed. The guarantees that matter are
+            // unchanged -- no orphaned child, the batch finishes, and the cancelled file
+            // is not counted in Results.
+            var h = new Harness(Files(1), maxConcurrency: 1);
             int finished = 0;
-            batch.BatchFinished += () => finished++;
-            batch.FileStarted += item => batch.Cancel();
+            h.Batch.BatchFinished += () => finished++;
+            h.Batch.FileStarted += item => h.Batch.Cancel();
 
-            batch.Start();
+            h.Start();
 
-            Assert.Single(factory.Created);
-            Assert.False(factory.Created[0].Started);
+            Assert.Single(h.Factory.Created);
+            Assert.True(h.Factory.Created[0].Started);
+            Assert.True(h.Factory.Created[0].Killed);
+
+            h.Factory.Created[0].Finish(1, "stdout", "stderr", "exit");
+            h.Dispatcher.RunUntilIdle();
+
             Assert.Equal(1, finished);
-            Assert.True(batch.Finished);
+            Assert.True(h.Batch.Finished);
+            Assert.Empty(h.Batch.Results);
         }
 
         [Fact]
         public void AFailedFileIsRecordedAsAFailureAndTheBatchCarriesOn()
         {
-            var factory = new FakePfcToolProcessFactory();
-            var batch = new AnalysisBatch(Files(2), Options(), factory, maxConcurrency: 1);
+            var h = new Harness(Files(2), maxConcurrency: 1);
+            h.Start();
 
-            batch.Start();
-            factory.Created[0].EmitStderr("cannot open document");
-            factory.Created[0].Finish(1, "stdout", "stderr", "exit");
+            h.Factory.Created[0].EmitStderr("cannot open document");
+            h.Factory.Created[0].Finish(1, "stdout", "stderr", "exit");
+            h.Dispatcher.RunUntilIdle();
 
-            Assert.Single(batch.Failures);
-            Assert.Equal(2, factory.Created.Count);
+            Assert.Single(h.Batch.Failures);
+            Assert.Equal(2, h.Factory.Created.Count);
 
-            SucceedOnePage(factory.Created[1]);
+            h.Complete(1);
 
-            Assert.Single(batch.Results);
-            Assert.Single(batch.Failures);
-            Assert.True(batch.Finished);
+            Assert.Single(h.Batch.Results);
+            Assert.Single(h.Batch.Failures);
+            Assert.True(h.Batch.Finished);
         }
 
         [Fact]
         public void EventsCarryTheItemThatIdentifiesTheFile()
         {
-            var factory = new FakePfcToolProcessFactory();
-            var batch = new AnalysisBatch(Files(2), Options(), factory, maxConcurrency: 1);
-
+            var h = new Harness(Files(2), maxConcurrency: 1);
             var started = new List<BatchItem>();
             var completed = new List<BatchItem>();
-            batch.FileStarted += item => started.Add(item);
-            batch.FileCompleted += (item, analyzer) => completed.Add(item);
+            h.Batch.FileStarted += item => started.Add(item);
+            h.Batch.FileCompleted += (item, analyzer) => completed.Add(item);
 
-            batch.Start();
-            SucceedOnePage(factory.Created[0]);
-            SucceedOnePage(factory.Created[1]);
+            h.Start();
+            h.Complete(0);
+            h.Complete(1);
 
             Assert.Equal(new[] { 0, 1 }, started.Select(i => i.Index).ToArray());
             Assert.Equal(new[] { 0, 1 }, completed.Select(i => i.Index).ToArray());
@@ -184,16 +220,18 @@ namespace TIFPDFCounter.Tests
         [Fact]
         public void ADuplicatePathIsAnalyzedOnce()
         {
-            // Over-reporting page totals is not a cosmetic bug: customers price their own
+            // Over-reporting page totals is not cosmetic: customers price their own
             // customers' work from these numbers.
             var factory = new FakePfcToolProcessFactory();
+            var dispatcher = new QueueDispatcher();
             var batch = new AnalysisBatch(
                 new List<string> { @"C:\files\a.pdf", @"C:\files\A.PDF", @"C:\files\b.pdf" },
-                Options(), factory, maxConcurrency: 4);
+                Options(), factory, dispatcher, maxConcurrency: 4);
 
             Assert.Equal(2, batch.Items.Count);
 
             batch.Start();
+            dispatcher.RunUntilIdle();
 
             Assert.Equal(2, factory.Created.Count);
         }
@@ -201,135 +239,101 @@ namespace TIFPDFCounter.Tests
         [Fact]
         public void AStormOfSynchronousFailuresDoesNotOverflowTheStack()
         {
-            // Go() raises AnalysisComplete on the calling thread when Start throws, so a
-            // pump that recursed from its own completion handler would nest one frame set
-            // per queued file. A missing pfc-tool.exe and a few hundred dropped files
-            // would then overflow the stack, which .NET cannot catch.
+            // Go() raises AnalysisComplete on the calling thread when Start throws. The
+            // completion is posted, so it cannot re-enter the pump -- this is now
+            // structural rather than caught by a flag.
             var factory = new FakePfcToolProcessFactory
             {
                 StartThrows = new InvalidOperationException("The system cannot find the file specified")
             };
-            var batch = new AnalysisBatch(Files(1000), Options(), factory, maxConcurrency: 4);
+            var dispatcher = new QueueDispatcher();
+            var batch = new AnalysisBatch(Files(1000), Options(), factory, dispatcher, maxConcurrency: 4);
 
             int finished = 0;
             batch.BatchFinished += () => finished++;
 
             batch.Start();
+            dispatcher.RunUntilIdle();
 
             Assert.Equal(1, finished);
             Assert.Equal(1000, batch.Failures.Count);
             Assert.Empty(batch.Results);
         }
 
-        /// <summary>
-        /// Completes 32 fakes concurrently from 32 real threads and checks the pool comes
-        /// out consistent: every file is accounted for exactly once and BatchFinished
-        /// fires exactly once.
-        /// </summary>
-        /// <remarks>
-        /// This is a smoke test of the lock and the pump handoff under genuine
-        /// concurrency, not a reliable regression test for the specific
-        /// BatchFinished-before-a-pending-FileCompleted race that <c>pendingCompletions</c>
-        /// exists to close. That race's window is only the width of the two delegate
-        /// unsubscribes bracketing the FileCompleted call in OnAnalyzerComplete, and a
-        /// Barrier does not reliably land two of these 32 threads inside a window that
-        /// narrow: with <c>pendingCompletions</c> deliberately reverted, this exact test
-        /// still passed 15/15 in isolation, and the same scenario run in-process passed
-        /// 2000/2000. Only an artificial delay inserted into OnAnalyzerComplete reliably
-        /// exposed the bug (200/200 violations with a 1ms delay, 0/200 without it) -- that
-        /// experiment, not this test, is the real evidence the invariant holds. Do not add
-        /// a delay or any other hook to production code to make this test bite; a test
-        /// that is honest about what it does and does not prove is worth more than one
-        /// that is believed to prove more than it does.
-        /// </remarks>
         [Fact]
-        public void ConcurrentCompletionSmokeTest()
+        public void AThrowingFileCompletedHandlerDoesNotStallThePool()
         {
-            const int n = 32;
-            var factory = new FakePfcToolProcessFactory();
-            var batch = new AnalysisBatch(Files(n), Options(), factory, maxConcurrency: n);
-
-            int batchFinishedCount = 0;
-            int completedAfterFinish = 0;
-
-            batch.BatchFinished += () => Interlocked.Increment(ref batchFinishedCount);
-            batch.FileCompleted += (item, analyzer) =>
-            {
-                if (Volatile.Read(ref batchFinishedCount) != 0)
-                    Interlocked.Increment(ref completedAfterFinish);
-            };
-
-            batch.Start();
-            Assert.Equal(n, factory.Created.Count);
-
-            // A barrier maximizes how many of the N completions actually land at the same
-            // moment. It widens the odds of hitting the OnAnalyzerComplete race described
-            // above, but -- per the class remarks -- not reliably: treat a pass here as a
-            // consistency check, not as proof the race is closed.
-            var barrier = new Barrier(n);
-            var threads = new Thread[n];
-            for (int i = 0; i < n; i++)
-            {
-                var process = factory.Created[i];
-                threads[i] = new Thread(() =>
-                {
-                    barrier.SignalAndWait();
-                    process.Finish(1, "stdout", "stderr", "exit");
-                });
-            }
-
-            foreach (var t in threads) t.Start();
-            foreach (var t in threads) t.Join();
-
-            Assert.Equal(n, factory.Created.Count);
-            Assert.Equal(n, batch.Results.Count + batch.Failures.Count);
-            Assert.Equal(1, batchFinishedCount);
-            Assert.Equal(0, completedAfterFinish);
-            Assert.True(batch.Finished);
-        }
-
-        [Fact]
-        public void AThrowingFileCompletedHandlerDoesNotWedgeTheBatch()
-        {
-            // pendingCompletions must come back down even when a FileCompleted subscriber
-            // throws, or the finish condition in Pump() can never be satisfied again.
-            // Confirmed by reverting the `finally` around the decrement and re-running this
-            // exact scenario: without it, BatchFinished is never raised and Finished stays
-            // false, which in the GUI makes the window impossible to close (FormClosing
-            // sets e.Cancel = true while !batchFinished).
-            var factory = new FakePfcToolProcessFactory();
-            var batch = new AnalysisBatch(Files(2), Options(), factory, maxConcurrency: 2);
-
+            // THREE files at concurrency ONE. The previous version of this test used two
+            // files at concurrency two, where the other analyzer's completion did the
+            // pumping -- so it passed even with Pump() outside the finally. With a queue
+            // behind the pool, a skipped Pump is permanent.
+            var h = new Harness(Files(3), maxConcurrency: 1);
             int batchFinishedRaised = 0;
-            batch.BatchFinished += () => batchFinishedRaised++;
+            h.Batch.BatchFinished += () => batchFinishedRaised++;
 
             bool first = true;
-            batch.FileCompleted += (item, analyzer) =>
+            h.Batch.FileCompleted += (item, analyzer) =>
             {
                 if (first) { first = false; throw new InvalidOperationException("boom"); }
             };
 
-            batch.Start();
-            Assert.Equal(2, factory.Created.Count);
+            h.Start();
+            Assert.Single(h.Factory.Created);
 
-            Assert.Throws<InvalidOperationException>(() => factory.Created[0].Finish(1, "stdout", "stderr", "exit"));
-            factory.Created[1].Finish(1, "stdout", "stderr", "exit");
+            SucceedOnePage(h.Factory.Created[0]);
+            Assert.Throws<InvalidOperationException>(() => h.Dispatcher.RunUntilIdle());
+
+            // The pool must have refilled despite the throw.
+            Assert.Equal(2, h.Factory.Created.Count);
+
+            h.Complete(1);
+            h.Complete(2);
 
             Assert.Equal(1, batchFinishedRaised);
-            Assert.True(batch.Finished);
+            Assert.True(h.Batch.Finished);
+        }
+
+        [Fact]
+        public void AThrowingFileStartedHandlerDoesNotStrandItsAnalyzer()
+        {
+            // An analyzer added to `running` must always be started, or nothing will ever
+            // deliver a completion for it and the batch can never finish. Go() runs in a
+            // finally for exactly this reason.
+            var h = new Harness(Files(2), maxConcurrency: 1);
+            int batchFinishedRaised = 0;
+            h.Batch.BatchFinished += () => batchFinishedRaised++;
+
+            bool first = true;
+            h.Batch.FileStarted += item =>
+            {
+                if (first) { first = false; throw new InvalidOperationException("boom"); }
+            };
+
+            h.Batch.Start();
+            Assert.Throws<InvalidOperationException>(() => h.Dispatcher.RunUntilIdle());
+
+            // Started despite the throwing subscriber.
+            Assert.Single(h.Factory.Created);
+            Assert.True(h.Factory.Created[0].Started);
+
+            h.Complete(0);
+            h.Complete(1);
+
+            Assert.Equal(1, batchFinishedRaised);
+            Assert.True(h.Batch.Finished);
+            Assert.Equal(2, h.Batch.Results.Count);
         }
 
         [Fact]
         public void ProgressIsForwardedWithTheItem()
         {
-            var factory = new FakePfcToolProcessFactory();
-            var batch = new AnalysisBatch(Files(1), Options(), factory, maxConcurrency: 1);
-
+            var h = new Harness(Files(1), maxConcurrency: 1);
             var progress = new List<Tuple<int, int, int>>();
-            batch.FileProgress += (item, completed, total) => progress.Add(Tuple.Create(item.Index, completed, total));
+            h.Batch.FileProgress += (item, completed, total) => progress.Add(Tuple.Create(item.Index, completed, total));
 
-            batch.Start();
-            factory.Created[0].EmitStdout("PageCount=4 BookmarkCount=0");
+            h.Start();
+            h.Factory.Created[0].EmitStdout("PageCount=4 BookmarkCount=0");
+            h.Dispatcher.RunUntilIdle();
 
             Assert.Single(progress);
             Assert.Equal(Tuple.Create(0, 0, 4), progress[0]);
