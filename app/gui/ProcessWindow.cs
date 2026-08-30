@@ -1,10 +1,7 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
 using System.Drawing;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -12,15 +9,18 @@ namespace TIFPDFCounter
 {
     public partial class ProcessWindow : Form
     {
-        public List<TPCFile> Results { get { return completedFiles; } }
+        // A snapshot, not the batch's live internal List<T>: batch.Results is safe to
+        // read once the batch has finished, but handing out the live list behind
+        // IReadOnlyList<T> would let a caller observe it still being mutated, or hold a
+        // reference that keeps changing under it. Safe with today's single caller, but a
+        // trap for the next one.
+        public IReadOnlyList<TPCFile> Results { get { return batch.Results.ToList(); } }
 
-        private readonly Queue<string> processQueue;
-        private readonly List<FileAnalyzer> runningProcesses;
-        private readonly List<TPCFile> completedFiles;
-        private readonly List<FileAnalyzer> failedFiles;
-        private readonly int maxProcesses;
-        private bool batchInProgress;
+        private readonly AnalysisBatch batch;
+        private readonly DataGridViewRow[] rows;
+        private bool batchFinished;
         private bool batchCancelled;
+        private bool closeRequested;
 
         public ProcessWindow()
         {
@@ -29,43 +29,82 @@ namespace TIFPDFCounter
 
         public ProcessWindow(List<string> filenames) : this()
         {
-            processQueue = new Queue<string>(filenames);
-            runningProcesses = new List<FileAnalyzer>();
-            completedFiles = new List<TPCFile>();
-            failedFiles = new List<FileAnalyzer>();
-            maxProcesses = Math.Max(Environment.ProcessorCount - 1, 1);
+            var options = new AnalysisOptions
+            {
+                PerformColorAnalysis = Settings.Current.PerformColorAnalysis,
+                ColorThreshold = Settings.Current.ColorThreshold,
+                CheckImagePixels = Settings.Current.CheckImagePixels
+            };
+
+            IDispatcher dispatcher = new ControlDispatcher(this);
+            batch = new AnalysisBatch(filenames, options, new PfcToolProcessFactory(), dispatcher);
+            rows = new DataGridViewRow[batch.Items.Count];
+
+            batch.FileStarted += Batch_FileStarted;
+            batch.FileProgress += Batch_FileProgress;
+            batch.FileCompleted += Batch_FileCompleted;
+            batch.BatchFinished += Batch_BatchFinished;
 
             int colIndex = grid.Columns.Add(new DataGridViewProgressColumn());
             grid.Columns[colIndex].Name = "Progress";
             grid.Columns[colIndex].HeaderText = "Progress";
         }
 
-        private void NextFile()
+        private void Batch_FileStarted(BatchItem item)
         {
-            while (runningProcesses.Count < maxProcesses && processQueue.Count > 0)
-            {
-                batchInProgress = true;
-                string filename = processQueue.Dequeue();
-
-                var dgvr = GetRow(filename);
-                dgvr.Cells["Status"].Value = "Processing";
-                
-                var analyzer = new FileAnalyzer(filename, Settings.Current.PerformColorAnalysis, Settings.Current.ColorThreshold, Settings.Current.CheckImagePixels);
-                // save a reference to the DataGridViewRow in the FileAnalyzer.Tag
-                // this is used later for progress updates
-                analyzer.Tag = dgvr;
-
-                runningProcesses.Add(analyzer);
-                analyzer.ProgressChanged += Analyzer_ProgressChanged;
-                analyzer.AnalysisComplete += Analyzer_AnalysisComplete;
-                analyzer.Go();
-            }
+            rows[item.Index].Cells["Status"].Value = "Processing";
         }
-        
-        private DataGridViewRow GetRow(string filePath)
+
+        private void Batch_FileProgress(BatchItem item, int completed, int total)
         {
-            return grid.Rows.Cast<DataGridViewRow>()
-                .First(r => ((string)r.Tag).Equals(filePath));
+            var dgvr = rows[item.Index];
+
+            // Posting rather than blocking means a progress update can arrive after
+            // the file finished and its row was removed. Nothing to draw in that case.
+            if (dgvr.DataGridView == null || total <= 0)
+                return;
+
+            dgvr.Cells["Progress"].Value = completed * 100 / total;
+        }
+
+        private void Batch_FileCompleted(BatchItem item, FileAnalyzer analyzer)
+        {
+            var dgvr = rows[item.Index];
+
+            if (analyzer.Cancelled)
+            {
+                dgvr.Cells["Status"].Value = "Cancelled";
+            }
+            else if (analyzer.Failed)
+            {
+                string errorMessage = "Failed: " + analyzer.Errors.ToString(0, Math.Min(analyzer.Errors.Length, 255));
+                dgvr.Cells["Status"].Value = errorMessage;
+                dgvr.DefaultCellStyle.BackColor = Color.DarkRed;
+                dgvr.DefaultCellStyle.ForeColor = Color.White;
+                dgvr.DefaultCellStyle.SelectionBackColor = Color.Red;
+                dgvr.DefaultCellStyle.SelectionForeColor = Color.White;
+            }
+            else
+            {
+                System.Diagnostics.Debug.Assert(analyzer.Result != null);
+                grid.Rows.Remove(dgvr);
+            }
+
+            ScrollToFirstProcessingRow();
+        }
+
+        private void Batch_BatchFinished()
+        {
+            batchFinished = true;
+
+            if (batchCancelled || batch.Failures.Count == 0)
+            {
+                Close();
+            }
+            else
+            {
+                Text = "Processing finished with errors";
+            }
         }
 
         private void ScrollToFirstProcessingRow()
@@ -84,106 +123,31 @@ namespace TIFPDFCounter
             }
         }
 
-        private void Analyzer_ProgressChanged(FileAnalyzer instance, int completed, int total)
-        {
-            Utility.BeginInvokeIfRequired(this, () =>
-            {
-                var dgvr = (DataGridViewRow)instance.Tag;
-
-                // Posting rather than blocking means a progress update can arrive after
-                // the file finished and its row was removed. Nothing to draw in that case.
-                if (dgvr.DataGridView == null || total <= 0)
-                    return;
-
-                dgvr.Cells["Progress"].Value = completed * 100 / total;
-            });
-        }
-
-        private void Analyzer_AnalysisComplete(FileAnalyzer instance)
-        {
-            Utility.BeginInvokeIfRequired(this, () =>
-            {
-                instance.ProgressChanged -= Analyzer_ProgressChanged;
-                instance.AnalysisComplete -= Analyzer_AnalysisComplete;
-                runningProcesses.Remove(instance);
-                var dgvr = (DataGridViewRow)instance.Tag;
-
-                if (instance.Cancelled)
-                {
-                    dgvr.Cells["Status"].Value = "Cancelled";
-                }
-                else if (instance.Failed)
-                {
-                    string errorMessage = "Failed: " + instance.Errors.ToString(0, Math.Min(instance.Errors.Length, 255));
-                    dgvr.Cells["Status"].Value = errorMessage;
-                    dgvr.DefaultCellStyle.BackColor = Color.DarkRed;
-                    dgvr.DefaultCellStyle.ForeColor = Color.White;
-                    dgvr.DefaultCellStyle.SelectionBackColor = Color.Red;
-                    dgvr.DefaultCellStyle.SelectionForeColor = Color.White;
-                    failedFiles.Add(instance);
-                }
-                else
-                {
-                    System.Diagnostics.Debug.Assert(instance.Result != null);
-                    completedFiles.Add(instance.Result);
-                    grid.Rows.Remove(dgvr);
-                }
-
-                ScrollToFirstProcessingRow();
-
-                if (processQueue.Count == 0 && runningProcesses.Count == 0)
-                {
-                    FinishBatch();
-                }
-                else
-                {
-                    NextFile();
-                }
-            });
-        }
-
-        private void FinishBatch()
-        {
-            batchInProgress = false;
-            if (batchCancelled || failedFiles.Count == 0)
-            {
-                Close();
-            }
-            else
-            {
-                Text = "Processing finished with errors";
-            }
-        }
-
-        private void CancelBatch()
-        {
-            System.Diagnostics.Debug.Print("Cancel batch");
-            processQueue.Clear();
-            foreach (var proc in runningProcesses.ToList())
-            {
-                proc.Cancel();
-            }
-
-            batchInProgress = false;
-            batchCancelled = true;
-        }
-
         private void ProcessWindow_FormClosing(object sender, FormClosingEventArgs e)
         {
-            if (batchInProgress)
+            // The first close attempt cancels the batch and keeps the window open so the
+            // in-flight children can drain -- FileAnalyzer has no timeout by design.
+            // A second attempt must actually close the window rather than cancelling the
+            // close again: without closeRequested, every attempt re-enters this branch
+            // and sets e.Cancel = true until batchFinished becomes true, which one slow
+            // stray pfc-tool.exe process can delay indefinitely. Since this window is
+            // shown modally, that made the whole application unclosable.
+            if (!batchFinished && !closeRequested)
             {
+                closeRequested = true;
                 e.Cancel = true;
-                CancelBatch();
+                batchCancelled = true;
+                batch.Cancel();
             }
         }
-        
+
         private void ProcessWindow_Load(object sender, EventArgs e)
         {
-            foreach (var filePath in processQueue)
+            foreach (var item in batch.Items)
             {
                 string fileSize;
                 long fileLength;
-                if (Utility.TryGetFileLength(filePath, out fileLength))
+                if (Utility.TryGetFileLength(item.Filename, out fileLength))
                 {
                     fileSize = Utility.BytesToString(fileLength);
                 }
@@ -192,16 +156,17 @@ namespace TIFPDFCounter
                     fileSize = "Unknown";
                 }
 
-                string folder = System.IO.Path.GetDirectoryName(filePath);
-                string fileName = System.IO.Path.GetFileName(filePath);
-                string extension = System.IO.Path.GetExtension(filePath);
+                string folder = System.IO.Path.GetDirectoryName(item.Filename);
+                string fileName = System.IO.Path.GetFileName(item.Filename);
+                string extension = System.IO.Path.GetExtension(item.Filename);
                 int rowIndex = grid.Rows.Add(folder, fileName, extension, fileSize, "Queued", 0);
-                grid.Rows[rowIndex].Tag = filePath;
+                grid.Rows[rowIndex].Tag = item.Filename;
+                rows[item.Index] = grid.Rows[rowIndex];
             }
 
-            NextFile();
+            batch.Start();
         }
-        
+
         private async void grid_CellDoubleClick(object sender, DataGridViewCellEventArgs e)
         {
             if (e.ColumnIndex >= 0 && e.RowIndex >= 0)

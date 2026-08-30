@@ -114,7 +114,7 @@ namespace TIFPDFCounter
             if (dropFiles == null || dropFiles.Count == 0)
                 return;
 
-            List<TPCFile> processedFiles;
+            IReadOnlyList<TPCFile> processedFiles;
             using (var processWindow = new ProcessWindow(dropFiles))
             {
                 AllowDrop = false;
