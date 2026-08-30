@@ -60,35 +60,41 @@ namespace TIFPDFCounter
         /// </para>
         /// <para>
         /// Complete() has two callers: SignalArrived(), when the signal counter reaches
-        /// zero, and Go()'s catch block, when Start() throws. Those two can genuinely race:
-        /// PfcToolProcess.Start() runs Process.Start(), then BeginErrorReadLine(), then
-        /// BeginOutputReadLine(). If the child process launches but a later step throws
-        /// (e.g. a reader fails to attach), the child is already live and
-        /// EnableRaisingEvents is already set, so Exited can fire on a thread pool thread
-        /// while Go()'s catch is still running Complete() on the calling thread -- both
-        /// racing for this CompareExchange.
+        /// zero, and Go()'s catch block, when Start() throws. Against the real
+        /// <see cref="PfcToolProcess"/> these cannot actually contend. Start() runs
+        /// Process.Start(), then BeginErrorReadLine(), then BeginOutputReadLine(); if a
+        /// later step throws, the earlier ones already succeeded, so only a subset of the
+        /// three completion signals is even capable of firing. If BeginErrorReadLine()
+        /// throws, only Exited can still fire, taking signalsOutstanding from 3 to 2. If
+        /// BeginOutputReadLine() throws, only the stderr end-of-file and Exited can still
+        /// fire, taking it from 3 to 1. Either way the counter never reaches zero, so
+        /// SignalArrived() never calls Complete() -- Go()'s catch is the only caller that
+        /// ever does, for that file.
         /// </para>
         /// <para>
-        /// That contended path is deliberately untested. The window is a few CPU
-        /// instructions wide; a test that hit it reliably needed Stopwatch calibration of
-        /// both code paths, a process-wide ThreadPool minimum-thread-count mutation, and
-        /// roughly 25,600 spun work items to reach 8-9 detections out of 10 -- and was
-        /// removed as disproportionate to what it protected. The concurrency test that
-        /// remains in FileAnalyzerTests.cs
-        /// (CompletesExactlyOnceUnderConcurrentSignalDelivery) does NOT cover this guard:
-        /// measured with this CompareExchange deliberately downgraded to a non-atomic
-        /// check-then-set, it detected 0 of 10 runs, at both 200 and 2000 iterations of its
-        /// loop, because all three of its signals go through SignalArrived()'s
-        /// Interlocked.Decrement(ref signalsOutstanding), which already guarantees exactly
-        /// one thread ever observes the decrement reach zero -- so exactly one thread ever
-        /// reaches this CompareExchange there, and it is never actually contended. The
-        /// Go()-catch-vs-SignalArrived() race above is a different path into Complete() that
-        /// no test in the suite currently reaches.
+        /// The guard stays anyway, as cheap defence-in-depth rather than protection
+        /// against a live race: <see cref="IPfcToolProcess"/> is a seam a third party
+        /// could implement differently (e.g. firing Exited before Start() returns, or
+        /// delivering a signal it shouldn't have after a throw), and this class cannot
+        /// vouch for an implementation it did not write. It also makes a double call to
+        /// Go() harmless, should one ever happen.
         /// </para>
         /// <para>
-        /// This guard is reasoned-correct, not test-verified for its contended path. Do not
-        /// downgrade the CompareExchange on the strength of a green test run -- the suite
-        /// cannot currently tell you if you broke it.
+        /// No test in the suite covers this guard's contended path, because that path is
+        /// not reachable through the real <see cref="IPfcToolProcess"/> implementation --
+        /// there is nothing to contend it with. The concurrency test that remains in
+        /// FileAnalyzerTests.cs (CompletesExactlyOnceUnderConcurrentSignalDelivery)
+        /// confirms this: measured with this CompareExchange deliberately downgraded to a
+        /// non-atomic check-then-set, it detected 0 of 10 runs, at both 200 and 2000
+        /// iterations of its loop. That is expected, not a gap -- all three of its signals
+        /// go through SignalArrived()'s Interlocked.Decrement(ref signalsOutstanding),
+        /// which already guarantees exactly one thread ever observes the decrement reach
+        /// zero, so exactly one thread ever reaches this CompareExchange there.
+        /// </para>
+        /// <para>
+        /// Do not remove the CompareExchange on the strength of this reasoning. It is
+        /// still the only thing standing between a misbehaving <see cref="IPfcToolProcess"/>
+        /// and a double-raised <see cref="AnalysisComplete"/>.
         /// </para>
         /// </summary>
         private int completionRaised;
@@ -109,15 +115,22 @@ namespace TIFPDFCounter
 
         /// <summary>
         /// Guards which of Go() and Cancel() gets to decide whether the child process
-        /// ever starts. Cancel() can run on another thread between the batch registering
-        /// this analyzer and Go() actually being called -- the window AnalysisBatch.Pump
-        /// leaves open between <c>running.Add</c> and <c>analyzer.Go()</c> so that
-        /// FileStarted can be raised outside the lock. Without this, Cancel() calls
-        /// Kill() on a process that has not been started yet -- which
-        /// PfcToolProcess.Kill() swallows, because <c>Process.HasExited</c> throws
-        /// InvalidOperationException on an unstarted process -- and Go() then starts the
-        /// child anyway, so it runs to completion despite the batch having been
-        /// cancelled.
+        /// ever starts. Within <see cref="AnalysisBatch"/> this can no longer actually
+        /// race: the batch holds no lock, and Cancel() posts, so it can only run as a
+        /// later, separately dispatched action -- Pump's <c>running.Add</c>, the
+        /// <c>FileStarted</c> raise and <c>analyzer.Go()</c> are one synchronous block on
+        /// the dispatcher thread, and the batch can never reach Cancel() before Go() has
+        /// already run.
+        /// <para>
+        /// The guard earns its place anyway because <see cref="FileAnalyzer"/> is public
+        /// and has callers outside the batch -- the integration tests drive it directly
+        /// -- so Go() and Cancel() can still arrive from different threads for those
+        /// callers. Without this, Cancel() calls Kill() on a process that has not been
+        /// started yet -- which PfcToolProcess.Kill() swallows, because
+        /// <c>Process.HasExited</c> throws InvalidOperationException on an unstarted
+        /// process -- and Go() then starts the child anyway, so it runs to completion
+        /// despite having been cancelled.
+        /// </para>
         /// <para>
         /// One atomic CompareExchange decides the outcome regardless of which method
         /// reaches it first: whichever of Go()/Cancel() transitions this out of

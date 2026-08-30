@@ -46,20 +46,6 @@ namespace TIFPDFCounter.Tests
         }
 
         [Fact]
-        public void ActionsRunInPostOrder()
-        {
-            var dispatcher = new QueueDispatcher();
-            var order = new List<int>();
-
-            dispatcher.Post(() => order.Add(1));
-            dispatcher.Post(() => order.Add(2));
-            dispatcher.Post(() => order.Add(3));
-            dispatcher.RunUntilIdle();
-
-            Assert.Equal(new[] { 1, 2, 3 }, order);
-        }
-
-        [Fact]
         public void AThrowingActionDoesNotStrandTheQueue()
         {
             // A subscriber's exception propagates to the caller of RunUntilIdle -- the

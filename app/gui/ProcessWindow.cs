@@ -17,7 +17,6 @@ namespace TIFPDFCounter
         public IReadOnlyList<TPCFile> Results { get { return batch.Results.ToList(); } }
 
         private readonly AnalysisBatch batch;
-        private readonly IDispatcher dispatcher;
         private readonly DataGridViewRow[] rows;
         private bool batchFinished;
         private bool batchCancelled;
@@ -37,7 +36,7 @@ namespace TIFPDFCounter
                 CheckImagePixels = Settings.Current.CheckImagePixels
             };
 
-            dispatcher = new ControlDispatcher(this);
+            IDispatcher dispatcher = new ControlDispatcher(this);
             batch = new AnalysisBatch(filenames, options, new PfcToolProcessFactory(), dispatcher);
             rows = new DataGridViewRow[batch.Items.Count];
 

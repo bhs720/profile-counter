@@ -221,13 +221,16 @@ namespace TIFPDFCounter.Tests
         [Fact]
         public void CancelBeforeGoNeverStartsTheProcessAndCompletesExactlyOnce()
         {
-            // AnalysisBatch.Pump adds an analyzer to its running set, then raises
-            // FileStarted, and only then calls Go() -- all outside its lock. Cancel()
-            // can run on another thread in that window and, before this fix, would kill
-            // a process that had not started yet (PfcToolProcess.Kill swallows the
-            // InvalidOperationException from an unstarted Process.HasExited), after
-            // which Go() started the child anyway and it ran to completion despite the
-            // batch having been cancelled.
+            // AnalysisBatch itself can no longer produce this interleaving: it holds no
+            // lock, and Cancel() posts, so Pump's running.Add -> FileStarted -> Go() runs
+            // as one synchronous block on the dispatcher thread with no window for
+            // Cancel() to land in between. This pins the behaviour for FileAnalyzer's
+            // other callers -- the integration tests drive it directly -- where Go() and
+            // Cancel() genuinely can arrive from different threads. Before the underlying
+            // fix, Cancel()-before-Go() would kill a process that had not started yet
+            // (PfcToolProcess.Kill swallows the InvalidOperationException from an
+            // unstarted Process.HasExited), after which Go() started the child anyway and
+            // it ran to completion despite having been cancelled.
             var h = new Harness();
 
             h.Analyzer.Cancel();

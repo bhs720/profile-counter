@@ -57,7 +57,7 @@ msbuild app\pfc-tool\pfc-tool.sln /p:Configuration=Release /p:Platform=x64
 
 The managed build needs no `Platform` argument: the GUI project is x64 and writes to `app\x64\$(Configuration)\` unconditionally.
 
-Output lands in `app\x64\Release\` (or `app\x64\Debug\`) containing `ProFile Counter.exe`, `ProFile Counter.exe.config`, `pfc-tool.exe`, `ProFileCounter.Core.dll`, `Newtonsoft.Json.dll`, and `System.Resources.Extensions.dll` plus its dependency closure (`System.Buffers.dll`, `System.Memory.dll`, `System.Numerics.Vectors.dll`, `System.Runtime.CompilerServices.Unsafe.dll`) side by side — `ProFile Counter.exe` expects `pfc-tool.exe` in its own working directory (see `FileAnalyzer.cs`, which invokes `pfc-tool.exe` as a bare relative filename). `libmupdf.lib` itself lands under `app\pfc-tool\mupdf\platform\win32\x64\Release\`, per the submodule's own build layout.
+Output lands in `app\x64\Release\` (or `app\x64\Debug\`) containing `ProFile Counter.exe`, `ProFile Counter.exe.config`, `pfc-tool.exe`, `ProFileCounter.Core.dll`, `Newtonsoft.Json.dll`, and `System.Resources.Extensions.dll` plus its dependency closure (`System.Buffers.dll`, `System.Memory.dll`, `System.Numerics.Vectors.dll`, `System.Runtime.CompilerServices.Unsafe.dll`) side by side — `ProFile Counter.exe` expects `pfc-tool.exe` in its own working directory (see `AnalysisOptions.DefaultToolPath` in `app/core/AnalysisOptions.cs`, which holds `pfc-tool.exe` as a bare relative filename, and `PfcToolProcess`, which launches it). `libmupdf.lib` itself lands under `app\pfc-tool\mupdf\platform\win32\x64\Release\`, per the submodule's own build layout.
 
 ### Why System.Resources.Extensions ships
 
@@ -113,8 +113,8 @@ changes no `using` statement. Only duplicate *type names* would collide.
    `Settings.Current`, wraps itself in a `ControlDispatcher`, and hands both plus the
    file list to an `AnalysisBatch`. The batch already posts every event through that
    dispatcher onto the UI thread, so `ProcessWindow`'s four handlers paint what it
-   reports without marshalling themselves; see the comment on `ControlDispatcher.Post`
-   for the starvation that blocking (rather than posting) would cause.
+   reports without marshalling themselves; see the comment on the `ControlDispatcher`
+   class declaration for the starvation that blocking (rather than posting) would cause.
 3. `AnalysisBatch` (`app/core`) runs the bounded worker pool: at most
    `ProcessorCount - 1` analyzers at once, refilled as each completes, finishing only
    when the queue and the running set are both empty. All of its state lives on the
@@ -163,13 +163,20 @@ it has not been built** — so a C# change does not require the multi-minute nat
 They assert protocol conformance only. Colour classification is verified by the
 `pfc-regression` skill against a shipped baseline; do not duplicate it here.
 
-One race is deliberately left uncovered: `FileAnalyzer`'s `completionRaised` guard
-protects `Complete()`'s two callers from racing each other, but the test that exercised
-it reliably needed tens of thousands of tuned iterations and was removed as
-disproportionate — the concurrency test that remains measured 0 detections in 10 against
-a deliberately broken guard. Do not downgrade that `CompareExchange` on the strength of a
-green suite; see the XML doc on `completionRaised` in `FileAnalyzer.cs` for the full
-reasoning.
+One guard is deliberately untested on its contended path, because that path is not
+reachable through the real seam: `FileAnalyzer`'s `completionRaised` `CompareExchange`
+looks like it protects `Complete()`'s two callers — `SignalArrived()` and Go()'s catch —
+from racing each other, but against the real `PfcToolProcess` they cannot actually
+contend. If a later step in `PfcToolProcess.Start()` throws after an earlier one
+succeeded, only a subset of the three completion signals can still fire, so the signal
+counter never reaches zero and `SignalArrived()` never calls `Complete()` — Go()'s catch
+is the only caller, for that file. The guard stays anyway as cheap defence-in-depth
+against a differently-behaved `IPfcToolProcess` a third party could implement, and it
+also makes a double `Go()` harmless. The concurrency test that remains measured 0
+detections in 10 against a deliberately broken guard, which confirms there is nothing to
+contend it with here, not that the guard is unverified. Do not remove that
+`CompareExchange` on the strength of this reasoning — see the XML doc on
+`completionRaised` in `FileAnalyzer.cs` for the full argument.
 
 Neither new project sets `PlatformTarget`. `dotnet test` on net48 may host the tests at
 x86, and an x64-marked `ProFileCounter.Core.dll` would fail to load. The GUI stays x64.
