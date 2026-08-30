@@ -120,12 +120,13 @@ private void Pump()                      // dispatcher thread only
         var analyzer = CreateAnalyzer(item);
         running.Add(analyzer, item);
 
-        // Go() before FileStarted: once the analyzer is started it will always deliver a
-        // completion, so a throwing subscriber cannot strand it in `running`. Go() may
-        // complete synchronously, but that completion is posted, so it cannot re-enter
-        // this loop.
-        analyzer.Go();
-        FileStarted(item);
+        // Go() in a finally: an analyzer added to `running` MUST be started, or nothing
+        // will ever deliver a completion for it and the batch can never finish. Raising
+        // FileStarted first preserves today's event order; the finally is what stops a
+        // throwing subscriber from stranding the analyzer. Go() may complete
+        // synchronously, but that completion is posted, so it cannot re-enter this loop.
+        try { FileStarted(item); }
+        finally { analyzer.Go(); }
     }
 
     if (!finished && running.Count == 0 && queue.Count == 0)
@@ -167,9 +168,10 @@ private void OnAnalyzerComplete(FileAnalyzer analyzer)   // any thread
   `BatchFinished` run in the same posted action, in that order. `pendingCompletions` is
   deleted.
 - **A throwing `FileCompleted` cannot stall the pool.** `Pump()` is in the `finally`.
-- **A throwing `FileStarted` cannot strand an analyzer.** It is raised after `Go()`, so the
-  analyzer is already guaranteed to complete. The exception escapes to the message loop,
-  which is honest; the loop stops early and the next completion resumes it.
+- **A throwing `FileStarted` cannot strand an analyzer.** `Go()` runs in a `finally`, so an
+  analyzer that reached `running` is always started and will always deliver a completion.
+  The exception escapes to the message loop, which is honest; the loop stops early and the
+  next completion resumes it.
 - **The unlocked `Results` read has nowhere to live.** `results` is mutated and read on the
   same thread.
 - **Re-entrancy is structural, not flagged.** The 1000-file synchronous-failure test still
@@ -258,9 +260,19 @@ Expect the suite to fall from ~7s to under 1s.
 - **The pool refills on the UI thread again**, as it did before this branch. The UI is once
   more a throttle on child-process spawning. This is the shipped behaviour, exercised over
   a 1500-file corpus; the free-threaded version's decoupling was an unannounced change.
-- Nothing else changes observably. Cancellation semantics, the close behaviour, the
-  `Cancelled`-before-`Failed` ordering, results kept on cancel, and the duplicate guard are
-  all as they are today.
+- **`Cancel()` is asynchronous.** It posts, so it takes effect on the next dispatched
+  action rather than inside the caller's stack frame. `ProcessWindow_FormClosing` already
+  cancels the close and waits for the batch to drain, so this changes nothing there. It
+  does change one exotic path: a subscriber that calls `Cancel()` from inside its own
+  `FileStarted` handler no longer prevents that file's process from starting — the process
+  starts and is then killed. The guarantees that matter are unchanged: no orphaned child,
+  the batch still finishes, and the file is recorded as cancelled rather than counted. The
+  test covering that path is rewritten to assert the new outcome.
+- The `started = !cancelled` re-check between dequeue and `running.Add` is deleted.
+  `cancelled` can no longer change midway through a pump, because everything that sets it
+  is dispatched.
+- Nothing else changes observably. The close behaviour, the `Cancelled`-before-`Failed`
+  ordering, results kept on cancel, and the duplicate guard are all as they are today.
 
 ## Verification
 
