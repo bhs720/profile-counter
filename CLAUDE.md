@@ -105,25 +105,31 @@ The managed side is two assemblies. `app/gui` is the WinForms application;
 `app/core` (`ProFileCounter.Core.dll`) holds the whole analysis pipeline with no UI
 dependency, so it can be tested without building a Form. **Both use the
 `TIFPDFCounter` namespace** — namespaces span assemblies, so moving a type between them
-changes no `using` statement. Only duplicate *type names* would collide, which is why
-the GUI's WinForms thread helpers are `UiThread` and only the non-UI half kept the name
-`Utility`.
+changes no `using` statement. Only duplicate *type names* would collide.
 
 1. `MainForm` handles drag-drop, recursively expands dropped folders (`DiscoverFiles`),
    filters out files already summarized, and opens a `ProcessWindow` with the result.
 2. `ProcessWindow` (`app/gui`) is now UI only. It builds `AnalysisOptions` from
-   `Settings.Current`, hands the file list to an `AnalysisBatch`, and paints what the
-   batch reports. Every batch event is marshalled with `UiThread.BeginInvokeIfRequired`
-   — never the blocking `Invoke`; see the comment on that method for the starvation it
-   prevents.
+   `Settings.Current`, wraps itself in a `ControlDispatcher`, and hands both plus the
+   file list to an `AnalysisBatch`. The batch already posts every event through that
+   dispatcher onto the UI thread, so `ProcessWindow`'s four handlers paint what it
+   reports without marshalling themselves; see the comment on `ControlDispatcher.Post`
+   for the starvation that blocking (rather than posting) would cause.
 3. `AnalysisBatch` (`app/core`) runs the bounded worker pool: at most
    `ProcessorCount - 1` analyzers at once, refilled as each completes, finishing only
-   when the queue and the running set are both empty. It guards its own state with a
-   lock and raises events on whatever thread completed the work. Its pump has an
-   explicit re-entrancy guard, because `FileAnalyzer.Go()` raises `AnalysisComplete`
-   synchronously when the process fails to start. Events carry a `BatchItem` (index plus
-   filename), which is how the GUI maps a result back to a grid row. It also collapses
-   duplicate paths, so no file can be counted twice in the totals.
+   when the queue and the running set are both empty. All of its state lives on the
+   injected `IDispatcher`'s thread: `Start()`, `Cancel()` and both analyzer callbacks
+   post onto it rather than mutating anything directly, so the batch holds no lock and
+   no re-entrancy guard — `Post` never runs an action inline, so `FileAnalyzer.Go()`
+   completing synchronously posts a completion rather than re-entering the pump. An
+   `IDispatcher` must also never run two posted actions concurrently with each other —
+   `ThreadPool.QueueUserWorkItem` is not a valid implementation on its own, because it
+   satisfies "never inline" while still letting two callbacks mutate the batch's state at
+   the same moment; see `IDispatcher.Post`'s XML doc for the full contract. `Cancel()` is
+   itself asynchronous: it posts too, so cancellation does not take effect inside the
+   caller's stack frame. Events carry a `BatchItem` (index plus filename), which is how
+   the GUI maps a result back to a grid row. It also collapses duplicate paths, so no
+   file can be counted twice in the totals.
 4. `FileAnalyzer` (`app/core`) owns one `pfc-tool.exe` child through the
    `IPfcToolProcess` seam, accumulates a `TPCFile` from the parsed lines, and completes
    only once all three signals — stdout EOF, stderr EOF and process exit — have arrived.
@@ -156,6 +162,14 @@ it by walking up to `app\x64\{Release,Debug}\` and **report as skipped, not fail
 it has not been built** — so a C# change does not require the multi-minute native build.
 They assert protocol conformance only. Colour classification is verified by the
 `pfc-regression` skill against a shipped baseline; do not duplicate it here.
+
+One race is deliberately left uncovered: `FileAnalyzer`'s `completionRaised` guard
+protects `Complete()`'s two callers from racing each other, but the test that exercised
+it reliably needed tens of thousands of tuned iterations and was removed as
+disproportionate — the concurrency test that remains measured 0 detections in 10 against
+a deliberately broken guard. Do not downgrade that `CompareExchange` on the strength of a
+green suite; see the XML doc on `completionRaised` in `FileAnalyzer.cs` for the full
+reasoning.
 
 Neither new project sets `PlatformTarget`. `dotnet test` on net48 may host the tests at
 x86, and an x64-marked `ProFileCounter.Core.dll` would fail to load. The GUI stays x64.
