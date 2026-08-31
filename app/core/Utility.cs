@@ -17,6 +17,18 @@ namespace TIFPDFCounter
             return string.Format("{0:0.##} {1}", byteCount, suffix[order]);
         }
 
+        /// <summary>
+        /// Describes a finished batch's failures for the process window's title bar,
+        /// e.g. "34 of 512 files failed". The plural agrees with <paramref name="total"/>,
+        /// not <paramref name="failed"/>, so only a one-file batch reads "1 of 1 file failed".
+        /// </summary>
+        public static string DescribeBatchFailures(int failed, int total)
+        {
+            return string.Format(
+                "{0} of {1} file{2} failed",
+                failed, total, total == 1 ? "" : "s");
+        }
+
         public static bool TryGetFileLength(string fileName, out long fileLength)
         {
             int retry = 0;

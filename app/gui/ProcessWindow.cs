@@ -103,7 +103,8 @@ namespace TIFPDFCounter
             }
             else
             {
-                Text = "Processing finished with errors";
+                Text = "Processing finished - " +
+                    Utility.DescribeBatchFailures(batch.Failures.Count, batch.Items.Count);
             }
         }
 
