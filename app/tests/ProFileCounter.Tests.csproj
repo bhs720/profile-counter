@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <RootNamespace>TIFPDFCounter.Tests</RootNamespace>
+    <AssemblyName>ProFileCounter.Tests</AssemblyName>
+    <IsPackable>false</IsPackable>
+
+    <!-- Deliberately NOT ..\x64\$(Configuration)\. The test project keeps the default
+         bin\ output: the installer packages from app\x64\Release\, and the xunit and
+         testhost assemblies must never land there. -->
+
+    <!-- Deliberately no PlatformTarget; see ProFileCounter.Core.csproj. -->
+
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Xml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\core\ProFileCounter.Core.csproj" />
+  </ItemGroup>
+
+</Project>

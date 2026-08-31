@@ -1,0 +1,153 @@
+Fix colour sampling of images in the test device
+
+Carried locally against mupdf 1.28.2. Not submitted upstream.
+
+Three defects in the image sampling paths of fz_test_fill_image(),
+fz_test_fill_compressed_8bpc_image() and fz_test_fill_other_image() made colour
+detection read uninitialised memory or undecoded data. For ProFile Counter that
+meant a page could be classified black-and-white or colour at random between
+runs, and greyscale images in several formats were always reported as colour.
+
+1. The colour converter is declared as
+
+       void (*convert)(fz_context *, fz_color_converter *, const float *src, float *dst)
+
+   and every other caller in the library passes (src, dst). Both call sites here
+   pass (dst, src): the uninitialised ds[] is handed over as the source, the
+   converted result is written into cs[] (which held the real pixel data), and
+   the code then tests ds[], which is still uninitialised stack memory. Pass the
+   arrays in the declared order.
+
+2. fz_test_fill_other_image() computes the per-pixel component count as
+   pix->n - 1, unconditionally assuming an alpha channel. For a pixmap without
+   alpha the count becomes 0, so the sampling loop never reads the pixmap and
+   leaves cs[] unwritten. Subtract the alpha channel only when there is one, and
+   bail out rather than sample if a pixmap reports no colour components at all.
+
+3. fz_test_fill_image() takes a fast path that samples the image's compressed
+   buffer directly, but fz_open_compressed_buffer() only decodes the sample
+   oriented compressions. The "full image formats" -- JPX, PNG, TIFF, BMP, GIF,
+   PNM, PSD, JXR -- fall through the switch in fz_open_image_decomp_stream() and
+   are returned still encoded, so the sampling loop reads compressed bytes as if
+   they were 8-bit pixels. Whatever the header and entropy coded data happen to
+   contain decides the verdict, and because that data is effectively random no
+   threshold below 1 suppresses it.
+
+   JPX shows it most clearly because its magic number is fixed: offset 3 of the
+   JP2 signature box is 0C 6A 50, a channel spread of 94, so detection trips on
+   the ASCII "jP" at the second pixel before anything has been decoded.
+
+   The reach is wider than JPX. Inside a PDF only JPXDecode takes this path, but
+   pfc-tool also opens standalone images, where BMP, PNG and PNM files arrive
+   here directly. Measured against the previously shipped build over the full
+   corpus, a 1bpp black-and-white BMP scan, a greyscale PNG and a greyscale BMP
+   were each reported as colour; all three render with a maximum per-pixel
+   channel spread of 0 and are correctly black-and-white after this change.
+
+   Restrict the fast path to the compressions that really do decode to samples
+   and let everything else go through fz_get_pixmap_from_image().
+
+Defect 1 is the one that affects ordinary ICC and Flate encoded images and is a
+regression against the 1.6 series this project previously used, which was
+deterministic on the same files. Defect 3 is independent of the other two: it
+lives in the fz_device_rgb branch, which uses is_rgb_color_u8() and no colour
+converter at all.
+
+To refresh after a mupdf version bump: apply by hand, adjust, then regenerate
+with `git diff -- source/fitz/test-device.c` from within the submodule.
+
+diff --git a/source/fitz/test-device.c b/source/fitz/test-device.c
+index 7a82d34c5..ac46e84c6 100644
+--- a/source/fitz/test-device.c
++++ b/source/fitz/test-device.c
+@@ -229,7 +229,7 @@ static void fz_test_fill_compressed_8bpc_image(fz_context *ctx, fz_test_device *
+ 				for (k = 0; k < n; k++)
+ 					cs[k] = fz_read_byte(ctx, stream) / 255.0f;
+ 
+-				cc.convert(ctx, &cc, ds, cs);
++				cc.convert(ctx, &cc, cs, ds);
+ 
+ 				if (is_rgb_color(dev->threshold, ds[0], ds[1], ds[2]))
+ 				{
+@@ -284,7 +284,17 @@ fz_test_fill_other_image(fz_context *ctx, fz_test_device *dev, fz_pixmap *pix, f
+ 	else
+ 	{
+ 		fz_color_converter cc;
+-		unsigned int n = (unsigned int)pix->n-1;
++		unsigned int n = (unsigned int)pix->n - sa;
++
++		/* A pixmap without an alpha channel has no component to subtract, and
++		 * the sampling loop below reads exactly n components per pixel. If n
++		 * were left at zero the loop would never read the pixmap at all and
++		 * the converter would be handed uninitialised stack memory. */
++		if (n == 0)
++		{
++			fz_warn(ctx, "image has no colour components; skipping colour analysis");
++			return;
++		}
+ 
+ 		fz_init_cached_color_converter(ctx, &cc, pix->colorspace, fz_device_rgb(ctx), NULL, NULL, color_params);
+ 
+@@ -302,7 +312,7 @@ fz_test_fill_other_image(fz_context *ctx, fz_test_device *dev, fz_pixmap *pix, f
+ 					if (sa && *s++ == 0)
+ 						continue;
+ 
+-					cc.convert(ctx, &cc, ds, cs);
++					cc.convert(ctx, &cc, cs, ds);
+ 
+ 					if (is_rgb_color(dev->threshold, ds[0], ds[1], ds[2]))
+ 					{
+@@ -324,6 +334,44 @@ fz_test_fill_other_image(fz_context *ctx, fz_test_device *dev, fz_pixmap *pix, f
+ }
+ 
+ 
++/* fz_open_compressed_buffer() only decodes the sample oriented compressions.
++ * The "full image formats" -- JPX, PNG, TIFF, BMP, GIF, PNM, PSD, JXR -- fall
++ * through the switch in fz_open_image_decomp_stream() and are handed back still
++ * encoded, so sampling that stream reads compressed bytes as if they were
++ * pixels. Whatever the file's header and entropy coded data happen to contain
++ * decides the colour verdict, and since that data is effectively random no
++ * threshold below 1 can suppress it.
++ *
++ * JPX shows this most clearly because its magic number is fixed: offset 3 of
++ * every JP2 signature box is 0C 6A 50, a channel spread of 94, so detection
++ * trips on the ASCII "jP" at the second pixel before anything is decoded.
++ *
++ * It is not only a PDF concern. Inside a PDF only JPXDecode reaches this path,
++ * but this project also opens standalone images, where BMP, PNG and PNM files
++ * arrive here directly -- a 1bpp black and white BMP scan and a greyscale PNG
++ * were both reported as colour, and both render with a maximum per-pixel
++ * channel spread of zero.
++ *
++ * Decode a pixmap for these formats instead. */
++static int
++fz_test_compression_decodes_to_samples(int type)
++{
++	switch (type)
++	{
++	case FZ_IMAGE_RAW:
++	case FZ_IMAGE_FAX:
++	case FZ_IMAGE_FLATE:
++	case FZ_IMAGE_LZW:
++	case FZ_IMAGE_RLD:
++	case FZ_IMAGE_BROTLI:
++	case FZ_IMAGE_JPEG:
++	case FZ_IMAGE_JBIG2:
++		return 1;
++	default:
++		return 0;
++	}
++}
++
+ static void
+ fz_test_fill_image(fz_context *ctx, fz_device *dev_, fz_image *image, fz_matrix ctm, float alpha, fz_color_params color_params)
+ {
+@@ -348,7 +396,7 @@ fz_test_fill_image(fz_context *ctx, fz_device *dev_, fz_image *image, fz_matrix
+ 		}
+ 
+ 		buffer = fz_compressed_image_buffer(ctx, image);
+-		if (buffer && image->bpc == 8)
++		if (buffer && image->bpc == 8 && fz_test_compression_decodes_to_samples(buffer->params.type))
+ 		{
+ 			fz_stream *stream = fz_open_compressed_buffer(ctx, buffer);
+ 			fz_try(ctx)

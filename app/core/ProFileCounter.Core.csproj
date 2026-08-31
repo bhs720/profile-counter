@@ -1,0 +1,52 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+
+    <!-- The namespace is shared with the GUI assembly on purpose: namespaces span
+         assemblies, so moving a type here changes no using statement anywhere. -->
+    <RootNamespace>TIFPDFCounter</RootNamespace>
+    <AssemblyName>ProFileCounter.Core</AssemblyName>
+
+    <!-- Lands beside ProFile Counter.exe and pfc-tool.exe, which have to sit side by
+         side because FileAnalyzer launches the tool as a bare relative filename.
+         Project-relative rather than $(SolutionDir)-relative so it does not depend on
+         which solution builds it - a $(SolutionDir)-relative path would relocate the
+         output silently rather than failing. -->
+    <OutputPath>..\x64\$(Configuration)\</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+
+    <!-- Deliberately no PlatformTarget. The GUI is x64 because it hosts WinForms and
+         launches an x64 child; a managed library needs neither. dotnet test on net48
+         may host the tests at x86, and an x64-marked assembly would then fail to load
+         with BadImageFormatException. AnyCPU loads under either host. -->
+
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+    <DebugType>full</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+    <CheckForOverflowUnderflow>true</CheckForOverflowUnderflow>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <!-- Matches the GUI: Release has always shipped without a PDB. -->
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+  </PropertyGroup>
+
+  <!-- The SDK does not add framework references for .NET Framework targets. -->
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Xml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Supplies the net48 reference assemblies from NuGet, so the managed build does
+         not require a Visual Studio targeting pack to be installed. -->
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>

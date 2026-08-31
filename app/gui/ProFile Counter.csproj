@@ -1,0 +1,126 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <!-- RootNamespace determines the manifest name of Properties\Resources.resx,
+         which Properties\Resources.Designer.cs looks up as
+         "ProFileCounter.Properties.Resources". The code namespace is
+         TIFPDFCounter; the two deliberately differ. -->
+    <RootNamespace>ProFileCounter</RootNamespace>
+    <AssemblyName>ProFile Counter</AssemblyName>
+    <ApplicationIcon>tpcIcon.ico</ApplicationIcon>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <ProjectGuid>{C56DB532-5B4A-418B-B9B9-AFB42296D698}</ProjectGuid>
+
+    <!-- Properties\AssemblyInfo.cs is maintained by hand and holds the real
+         product version in AssemblyVersion. Letting the SDK generate the same
+         attributes would collide with it. -->
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+
+    <!-- ProFile Counter.exe and pfc-tool.exe must land side by side: FileAnalyzer
+         launches pfc-tool.exe as a bare relative filename from the GUI's working
+         directory. The path is project-relative rather than $(SolutionDir)-relative
+         so it does not depend on which solution builds the project. -->
+    <OutputPath>..\x64\$(Configuration)\</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+
+    <PlatformTarget>x64</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+    <FileAlignment>4096</FileAlignment>
+    <WarningLevel>4</WarningLevel>
+
+    <!-- MainForm.resx ($this.Icon) and SettingsWindow.resx (panel1.BackgroundImage)
+         hold System.Drawing objects as bytearray.base64. Under `dotnet build` the
+         GenerateResource task runs on .NET, which cannot instantiate System.Drawing
+         types in order to round-trip them, and fails with MSB3822/MSB3823. Writing
+         preserialized resources passes the base64 through untouched instead. -->
+    <GenerateResourceUsePreserializedResources>true</GenerateResourceUsePreserializedResources>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+    <DebugType>full</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+    <CheckForOverflowUnderflow>true</CheckForOverflowUnderflow>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <!-- Release has always shipped without a PDB. -->
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+  </PropertyGroup>
+
+  <!-- The SDK does not add framework references for .NET Framework targets. -->
+  <ItemGroup>
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Data.DataSetExtensions" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Messaging" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Xml" />
+    <Reference Include="System.Xml.Linq" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+
+    <!-- Writes the preserialized resources at build time, and is needed again at
+         runtime to read them back, so it ships alongside the exe. -->
+    <PackageReference Include="System.Resources.Extensions" Version="8.0.0" />
+
+    <!-- Supplies the net48 reference assemblies from NuGet, so the managed build
+         does not require a Visual Studio targeting pack to be installed. -->
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Each form resx must embed as TIFPDFCounter.<FormName>.resources, taken from
+         the namespace of its code-behind rather than from RootNamespace. The SDK's
+         EmbeddedResourceUseDependentUponConvention did not produce those names here
+         (it fell back to RootNamespace, giving ProFileCounter.MainForm.resources and
+         breaking every ComponentResourceManager lookup at runtime), so the mapping is
+         stated explicitly, as it was before the SDK conversion. -->
+    <EmbeddedResource Update="MainForm.resx">
+      <DependentUpon>MainForm.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Update="MatchingFilesReportWindow.resx">
+      <DependentUpon>MatchingFilesReportWindow.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Update="PageSizeEditor.resx">
+      <DependentUpon>PageSizeEditor.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Update="PageSizeManager.resx">
+      <DependentUpon>PageSizeManager.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Update="ProcessWindow.resx">
+      <DependentUpon>ProcessWindow.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Update="SettingsWindow.resx">
+      <DependentUpon>SettingsWindow.cs</DependentUpon>
+    </EmbeddedResource>
+
+    <!-- No DependentUpon on this one: it must keep resolving through RootNamespace to
+         ProFileCounter.Properties.Resources, which Resources.Designer.cs looks up. -->
+    <EmbeddedResource Update="Properties\Resources.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+    <Compile Update="Properties\Resources.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>Resources.resx</DependentUpon>
+    </Compile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The analysis pipeline lives in a UI-free assembly so it can be tested without
+         building this project. Both assemblies share the TIFPDFCounter namespace, so
+         no using statement here changes. -->
+    <ProjectReference Include="..\core\ProFileCounter.Core.csproj" />
+  </ItemGroup>
+
+</Project>
